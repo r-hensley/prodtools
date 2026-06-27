@@ -172,22 +172,10 @@ def get_def_counts(dataset, include_empty=False):
     query = f"defname: {dataset}" if include_empty else f"defname: {dataset} and event_count>0"
     nfiles = count_files(query)
     
-    # Count events
+    # Count events (listFilesSummary returns a dict, or [] on error)
     result = list_files(f"dh.dataset={dataset}", summary=True)
-    nevts = 0
-    if isinstance(result, dict):
-        nevts = result.get('total_event_count', 0) or 0
-    elif isinstance(result, list):
-        # Handle list result (when summary=False)
-        nevts = len(result)  # Fallback to file count
-    else:
-        # Handle string result (fallback)
-        for line in result.splitlines():
-            parts = line.split()
-            if len(parts) >= 3 and parts[0] == "Event":
-                nevts = int(parts[2])
-                break
-    
+    nevts = (result.get('total_event_count') or 0) if isinstance(result, dict) else 0
+
     if nfiles == 0:
         sys.exit(f"No files found in dataset {dataset}")
     return nfiles, nevts

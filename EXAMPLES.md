@@ -12,13 +12,12 @@ Mu2e environment is set up.
 - [4. Random Sampling in Input Data](#4-random-sampling-in-input-data)
 - [5. FCL Generation](#5-fcl-generation)
 - [6. Mixing Jobs](#6-mixing-jobs)
-- [7. JSON Expansion](#7-json-expansion)
-- [8. Production Execution](#8-production-execution)
-- [9. Sequential vs. Pseudo-Random Auxiliary Input Selection](#9-sequential-vs-pseudo-random-auxiliary-input-selection)
-- [10. FCL Overrides](#10-fcl-overrides)
-- [11. Parity Tests](#11-parity-tests)
-- [12. Additional Tools](#12-additional-tools)
-- [13. Troubleshooting](#13-troubleshooting)
+- [7. Production Execution](#7-production-execution)
+- [8. Sequential vs. Pseudo-Random Auxiliary Input Selection](#8-sequential-vs-pseudo-random-auxiliary-input-selection)
+- [9. FCL Overrides](#9-fcl-overrides)
+- [10. Parity Tests](#10-parity-tests)
+- [11. Additional Tools](#11-additional-tools)
+- [12. Troubleshooting](#12-troubleshooting)
 
 ## 1. Environment Setup
 
@@ -60,7 +59,6 @@ anywhere. For Run1B workflows that need local `fcl/` resolved by
 - `runmu2e` — execute production jobs from job definitions (worker entry)
 - `submit_map` — drive grid submissions from a POMS-map JSON
   (`mu2ejobsub` or direct `jobsub_submit` backend)
-- `jsonexpander` — expand template JSONs into parameter cross-products
 - `jobquery` — inspect job parameter tarballs
 - `mkidxdef` — create SAM index definitions from a jobdefs list
 
@@ -309,7 +307,7 @@ output filename but not the index.
 ## 6. Mixing Jobs
 
 Mixing combines primary events with pileup backgrounds. The config is
-array-valued so `jsonexpander` can produce combinations. From
+array-valued; `json2jobdef` expands the cross product internally. From
 `data/mdc2025/mix.json`:
 
 ```json
@@ -358,26 +356,9 @@ json2jobdef --json data/mdc2025/mix.json --index 0
 
 # All configurations for a dsconf
 json2jobdef --json data/mdc2025/mix.json --dsconf MDC2025af_best_v1_1
-
-# Or: expand first, inspect, then generate per entry
-jsonexpander --json data/mdc2025/mix.json --output expanded_mix.json
 ```
 
-## 7. JSON Expansion
-
-Any array-valued key in a JSON config becomes a dimension of a cross
-product. `jsonexpander` flattens the template into one entry per
-combination:
-
-```bash
-jsonexpander --json data/mdc2025/mix.json --output expanded_mix.json
-jsonexpander --json data/mdc2025/mix.json --output expanded_mix.json --mixing
-```
-
-The `--mixing` flag adds mixing-specific fields (mixer names, pileup
-counts) to each expanded entry.
-
-## 8. Production Execution
+## 7. Production Execution
 
 `runmu2e` runs a single job from a jobdefs list — it is the worker-side
 entry. The job index is selected via the `fname` environment variable,
@@ -447,7 +428,7 @@ under `submit_map` in §12.
 }
 ```
 
-## 9. Sequential vs. Pseudo-Random Auxiliary Input Selection
+## 8. Sequential vs. Pseudo-Random Auxiliary Input Selection
 
 For resampler jobs, `sequential_aux` at the top level of the JSON
 config controls how auxiliary input files are distributed across jobs:
@@ -470,7 +451,7 @@ config controls how auxiliary input files are distributed across jobs:
 Internally, `jobdef` places this under `tbs.sequential_aux` in the
 tarball; the top-level JSON field is the user-facing form.
 
-## 10. FCL Overrides
+## 9. FCL Overrides
 
 `fcl_overrides` is a flat dict of FHiCL paths → values. They are
 injected as a short template FCL that is `--embed`'ed into the tarball,
@@ -502,7 +483,7 @@ services.SeedService.baseSeed: 12345
 A special `"#include"` key can add extra `#include` lines to the
 template; see `data/mdc2025/mix.json` for real-world usage.
 
-## 11. Parity Tests
+## 10. Parity Tests
 
 Parity tests validate byte-for-byte equivalence between this Python
 implementation and the Perl `mu2ejobdef` reference across stage1,
@@ -517,7 +498,7 @@ cd test
 
 Requires `MUSE_WORK_DIR` set via `muse setup SimJob`.
 
-## 12. Additional Tools
+## 11. Additional Tools
 
 ### `pomsMonitor` — POMS analysis with a persistent SQLite DB
 
@@ -820,7 +801,7 @@ Reads a `EventNtuple` ROOT file and writes:
 - `occupancy_plane_panel.png` — 2D plane × panel occupancy
 - `occupancy_panel_straw.png` — 2D absolute panel × straw occupancy
 
-## 13. Troubleshooting
+## 12. Troubleshooting
 
 ### `samweb: command not found` / `fhicl-get: command not found`
 

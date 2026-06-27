@@ -213,7 +213,7 @@ def synthesize_entry(template, input_dataset, out_campaign=None, defer_desc=Fals
     entry = copy.deepcopy(match_entry(template, n.description))
     merge = _input_merge(entry)
     # Pin the concrete input, preserving the template's container shape:
-    # list-form [{name: merge}] (mixing/jsonexpander) vs dict {name: merge}
+    # list-form [{name: merge}] (mixing) vs dict {name: merge}
     # (digi/reco/ntuple). pileup_datasets and other fields are left untouched.
     if isinstance(entry.get('input_data'), list):
         entry['input_data'] = [{input_dataset: merge}]
@@ -275,7 +275,7 @@ def output_datasets(entry, owner='mu2e'):
     the sequencer. Skips templates that resolve to a path (e.g. /dev/null).
 
     Handles both shapes: scalar fields (digi/reco/ntuple) and list-wrapped
-    jsonexpander fields (mixing), unwrapping ``[x]`` -> ``x``.
+    mixing fields, unwrapping ``[x]`` -> ``x``.
 
     Mixing leaves ``{desc}`` literal in the output fileName (see ``defer_desc``).
     When that token survives, expand it to the concrete ``input_desc + pbeam``

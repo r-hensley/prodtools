@@ -4,7 +4,6 @@ Mixing utilities for Mu2e production scripts.
 """
 
 import copy
-import json
 import sys
 import itertools
 from .prod_utils import *
@@ -147,35 +146,20 @@ def build_pileup_args(config):
 
     return args
 
-def prepare_fields_for_mixing(config):
-    """Prepare job configuration for mixing by adding mixing-specific fields."""
-    # Create a copy of the config to modify
-    modified_config = copy.deepcopy(config)
-    
-    # Extract desc field from input_data and pbeam
-    input_data = _get_first_if_list(config['input_data'])
-    dsdesc = Mu2eName.parse(input_data).description if input_data else "unknown"
-    
-    pbeam = _get_first_if_list(config['pbeam'])
-    modified_config['desc'] = dsdesc + pbeam
-
-
-
 def _job_type_for_config(job):
     """Determine job type from config content (e.g. mixing if pbeam present)."""
     return 'mixing' if ('pbeam' in job) else 'standard'
 
 
-def expand_configs(configs, mixing=False):
+def expand_configs(configs):
     """
     Expand configurations into individual job configurations.
     Job type (mixing vs standard) is determined per config from content (e.g. pbeam),
     so desc gets pbeam appended for mixing jobs regardless of filename.
-    
+
     Args:
         configs: List of configuration dictionaries
-        mixing: Deprecated, ignored. Kept for backward compatibility.
-        
+
     Returns:
         List of expanded job configurations
     """
@@ -240,27 +224,5 @@ def expand_configs(configs, mixing=False):
             all_jobs.append(job)
 
     return all_jobs
-
-def expand_mix_config(json_path):
-    """Expand mixing configuration using expand_configs."""
-    # Load JSON config
-    if not json_path.exists():
-        raise FileNotFoundError(f"JSON file not found: {json_path}")
-    
-    try:
-        with json_path.open() as f:
-            configs = json.load(f)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse JSON file {json_path}: {e}")
-    
-    # Validate JSON structure
-    if not isinstance(configs, list):
-        raise ValueError(f"JSON file {json_path} must contain a list of configurations, got {type(configs)}")
-    
-    if len(configs) == 0:
-        raise ValueError(f"JSON file {json_path} contains no configurations")
-    
-    # Expand configurations with mixing enabled
-    return expand_configs(configs, mixing=True)
 
 

@@ -60,16 +60,14 @@ When regenerating, read in this order:
 6. **Mixing Jobs** — JSON schema with `pileup_datasets` list-of-dict form,
    automatic mixer mapping. Do not use the legacy `*_dataset` / `*_count`
    split form.
-7. **JSON Expansion (`jsonexpander`)** — array-valued keys producing cross
-   products.
-8. **Production Execution (`runmu2e`, `runfcl`)** — role of `fname`
+7. **Production Execution (`runmu2e`, `runfcl`)** — role of `fname`
    env var, `etc.mu2e.index.NNN.NNNNNNN.txt` format, dry-run flag.
-9. **Sequential vs. pseudo-random auxiliary input selection** — the
+8. **Sequential vs. pseudo-random auxiliary input selection** — the
    `tbs.sequential_aux` flag.
-10. **FCL overrides** — `fcl_overrides` dict, how template + `--embed`
+9. **FCL overrides** — `fcl_overrides` dict, how template + `--embed`
     works, that base FCL stays unexpanded.
-11. **Parity Tests** — `test/parity_test.sh` usage.
-12. **Additional Tools** — one subsection per script in `bin/` that has
+10. **Parity Tests** — `test/parity_test.sh` usage.
+11. **Additional Tools** — one subsection per script in `bin/` that has
     user-facing CLI: `pomsMonitor`, `pomsMonitorWeb`, `famtree`,
     `logparser`, `genFilterEff`, `datasetFileList`, `listNewDatasets`,
     `mkrecovery`, `mkidxdef`, `jobquery`, `plot_logs`,
@@ -79,7 +77,7 @@ When regenerating, read in this order:
     the current `bin/` directory — add any new script found there, remove
     any that no longer exist. (`runjob.sh` is a worker bootstrap, not
     user-facing — omit.)
-13. **Troubleshooting** — only entries that correspond to real error
+12. **Troubleshooting** — only entries that correspond to real error
     messages produced by current code. Remove stale ones.
 
 ## Tribal knowledge to preserve (non-derivable from code)

@@ -173,23 +173,14 @@ def _get_output_modules(template_path: str) -> List[str]:
             continue
         
         # Get modules in this end path
-        # Handle both cases: end_paths contains names or values
         try:
             mods = _run_fhicl_get(template_path, '--sequence-of', f'physics.{ep}').split('\n')
             for m in mods:
                 if m:  # Skip empty entries
                     endmodules.add(m)
-        except:
-            # If this fails, the end path name might be the actual end path
-            # Try to get modules directly from the end path name
-            try:
-                mods = _run_fhicl_get(template_path, '--sequence-of', f'physics.{ep}').split('\n')
-                for m in mods:
-                    if m:  # Skip empty entries
-                        endmodules.add(m)
-            except:
-                # If both fail, skip this end path
-                continue
+        except Exception:
+            # If this fails, skip this end path
+            continue
     
     # Only return output modules that are in active end paths
     # Perl: my @active_outmods = grep { $endmodules{$_} } @all_outmods;
@@ -237,7 +228,6 @@ def _build_jobpars_json(config: Dict, tbs: Dict, code: str = "", template_path: 
     version = config.get('version', 0)
     jobname = f"cnf.{owner}.{desc}.{dsconf}.{version}.tar"
 
-    # Reorder TBS fields to match Perl exactly: seed, subrunkey, event_id, outfiles
     # Reorder TBS fields to match Perl exactly: seed, subrunkey, event_id, outfiles
     ordered_tbs = {}
     perl_tbs_order = ['seed', 'subrunkey', 'event_id', 'outfiles']

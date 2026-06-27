@@ -5,7 +5,7 @@ Instructions for Claude Code when working in this repo.
 ## Prodtools usage
 
 Before answering any question about running the prodtools commands
-(`json2jobdef`, `jobfcl`, `fcldump`, `runmu2e`, `jobdef`, `jsonexpander`,
+(`json2jobdef`, `jobfcl`, `fcldump`, `runmu2e`, `jobdef`,
 `jobquery`, `mkidxdef`, `pomsMonitor`, `famtree`, `logparser`,
 `genFilterEff`, `datasetFileList`, `listNewDatasets`, `mkrecovery`,
 `copy_to_stash`), read `EXAMPLES.md` at the repo

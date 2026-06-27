@@ -2150,6 +2150,49 @@ class TestGenericCnfDiscovery(unittest.TestCase):
             os.unlink(perdesc)
             os.unlink(generic)
 
+    def test_generic_desc_capture(self):
+        from utils.jobdef_lookup import _generic_desc_capture
+        self.assertEqual(_generic_desc_capture('{desc}-KL', 'CeEndpoint-KL'), 'CeEndpoint')
+        self.assertEqual(_generic_desc_capture('{desc}', 'FlatGamma'), 'FlatGamma')
+        self.assertIsNone(_generic_desc_capture('{desc}-KL', 'CeEndpoint-CH'))
+        self.assertIsNone(_generic_desc_capture('NoPlaceholder', 'NoPlaceholder'))
+
+    def test_derive_generic_input_from_target(self):
+        """--target output file -> input file: strip suffix to input desc, map
+        tier (mcs->dig), find input in SAM by desc+seq (any dsconf)."""
+        from unittest.mock import patch
+        from utils import jobdef_lookup
+        # generic cnf with a {desc}-KL mcs output template
+        jp = _generic_reco_jobpars()
+        jp['tbs']['outfiles'] = {"outputs.KinematicLineOutput.fileName":
+                                 "mcs.mu2e.{desc}-KL.Run1Ban_best_v1_4-000.sequencer.art"}
+        tar = _make_tarball(jp, "#include \"OnSpill.fcl\"\n")
+        target = "mcs.mu2e.CeEndpoint-KL.Run1Ban_best_v1_4-000.001470_00000004.art"
+        # input dig at a DIFFERENT dsconf than the output (the realistic case)
+        dig = "dig.mu2e.CeEndpoint.Run1Bai_best_v1_4-000.001470_00000004.art"
+        try:
+            with patch('utils.samweb_wrapper.list_files', return_value=[dig]) as lf:
+                got = jobdef_lookup.derive_generic_input(tar, target)
+            self.assertEqual(got, dig)
+            # queried the dig tier (mcs->dig) for the stripped desc + run
+            dim = lf.call_args[0][0]
+            self.assertIn("dig.mu2e.CeEndpoint.", dim)
+            self.assertIn("run_number 1470", dim)
+        finally:
+            os.unlink(tar)
+
+    def test_derive_generic_input_no_match_raises(self):
+        from unittest.mock import patch
+        from utils import jobdef_lookup
+        tar = _make_tarball(_generic_reco_jobpars(), "#include \"OnSpill.fcl\"\n")
+        try:
+            with patch('utils.samweb_wrapper.list_files', return_value=[]):
+                with self.assertRaises(ValueError):
+                    jobdef_lookup.derive_generic_input(
+                        tar, "mcs.mu2e.X.MDC2025af_best_v1_3.001430_00000001.art")
+        finally:
+            os.unlink(tar)
+
 
 # ---------------------------------------------------------------------------
 # 24. _replace_placeholders defer_keys (jobdef.py)

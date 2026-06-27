@@ -12,7 +12,8 @@ from utils.job_common import Mu2eName
 from utils.jobfcl import Mu2eJobFCL
 # Dataset→cnf resolution lives in jobdef_lookup so other tools (latestDatasets
 # --complete-only) can reuse it without importing this entry point.
-from utils.jobdef_lookup import list_jobdefs, find_matching_jobdef, set_verbose, is_generic_cnf
+from utils.jobdef_lookup import (list_jobdefs, find_matching_jobdef, set_verbose,
+                                 is_generic_cnf, derive_generic_input)
 
 
 def write_fcl_direct_input(tarball, fname, loc='tape', proto='root'):
@@ -94,6 +95,11 @@ def main():
         if args.fname:
             # Direct-input mode: generic tarball + specific input file
             write_fcl_direct_input(jobdef, args.fname, args.loc, args.proto)
+        elif args.target and is_generic_cnf(jobdef):
+            # Generic tarball + --target output file: derive the input, generate.
+            fname = derive_generic_input(jobdef, args.target)
+            print(f"Generic cnf: target {args.target} -> input {fname}")
+            write_fcl_direct_input(jobdef, fname, args.loc, args.proto)
         else:
             write_fcl(jobdef, args.loc, args.proto, args.index, args.target)
         
@@ -119,14 +125,21 @@ def main():
         if not tarball_path:
             p.error(f"No matching job definition found for source description: {desc}")
 
-        # A generic cnf defers {desc}/sequencer to runtime, so it can't generate
-        # an fcl from a bare --dataset (no concrete input file -> no sequencer).
-        # Report the match and how to generate, instead of crashing in write_fcl.
+        # A generic cnf defers {desc}/sequencer to runtime. With a --target output
+        # file we can derive the input and generate; a bare --dataset has no
+        # sequencer, so report how to generate instead of crashing in write_fcl.
         if is_generic_cnf(tarball_path):
+            if args.target:
+                fname = derive_generic_input(tarball_path, args.target)
+                print(f"Matched generic cnf: {tarball_path}")
+                print(f"target {args.target} -> input {fname}")
+                write_fcl_direct_input(tarball_path, fname, args.loc, args.proto)
+                return
             print(f"Matched generic cnf: {tarball_path}")
             print("This is a generic tarball (output desc deferred as {desc}); a bare "
                   "--dataset has no sequencer to resolve it.")
-            print("Generate for a specific input file with:")
+            print("Generate by passing the output file via --target, or an input via --fname:")
+            print(f"  fcldump --dataset <output dataset> --target <output art file>")
             print(f"  fcldump --local-jobdef {tarball_path} --fname <input art file>")
             return
 

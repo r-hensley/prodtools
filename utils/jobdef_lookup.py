@@ -89,14 +89,48 @@ def is_generic_cnf(tarball_path):
     return any('{desc}' in d for d, _ in _raw_outfile_descs(tarball_path))
 
 
-def _generic_desc_matches(template_desc, desc):
-    """Does a {desc}-templated output description match a concrete request?
-    e.g. template ``{desc}-KL`` matches ``CeEndpoint-KL``. Literal parts are
-    regex-escaped; ``{desc}`` becomes a non-empty wildcard."""
+def _generic_desc_capture(template_desc, desc):
+    """If a {desc}-templated output description matches a concrete one, return the
+    value captured by ``{desc}`` (the input desc), else None. e.g. ``{desc}-KL``
+    vs ``CeEndpoint-KL`` -> ``CeEndpoint``; ``{desc}`` vs ``X`` -> ``X``."""
     import re
+    if '{desc}' not in template_desc:
+        return None
     parts = template_desc.split('{desc}')
-    pattern = '(.+)'.join(re.escape(p) for p in parts)
-    return re.fullmatch(pattern, desc) is not None
+    m = re.fullmatch('(.+)'.join(re.escape(p) for p in parts), desc)
+    return m.group(1) if m else None
+
+
+def _generic_desc_matches(template_desc, desc):
+    """True if a {desc}-templated output description matches a concrete request."""
+    return _generic_desc_capture(template_desc, desc) is not None
+
+
+# Output tier -> input tier its producing stage consumes (reco: dig->mcs, etc.).
+_OUTPUT_TO_INPUT_TIER = {'dig': 'dts', 'mcs': 'dig', 'nts': 'mcs', 'ntd': 'mcs'}
+
+
+def derive_generic_input(tarball_path, target):
+    """Map a --target OUTPUT file to its INPUT art file for a generic cnf: strip
+    the output-template suffix -> input desc, map tier (mcs->dig), and find the
+    input file in SAM by desc + sequencer (any dsconf)."""
+    from utils.samweb_wrapper import list_files
+    t = Mu2eName.parse(target)
+    in_tier = _OUTPUT_TO_INPUT_TIER.get(t.tier)
+    input_desc = None
+    for tmpl, tier in _raw_outfile_descs(tarball_path):
+        if tier == t.tier:
+            input_desc = _generic_desc_capture(tmpl, t.description)
+            if input_desc:
+                break
+    if not (input_desc and in_tier):
+        raise ValueError(f"cannot derive input for target '{target}'")
+    dim = (f"dh.dataset like '{in_tier}.mu2e.{input_desc}.%.art' "
+           f"and run_number {int(t.sequencer.split('_')[0])}")
+    matches = [f for f in list_files(dim) if f.endswith(f'.{t.sequencer}.art')]
+    if not matches:
+        raise ValueError(f"no {in_tier} input for desc '{input_desc}' seq '{t.sequencer}'")
+    return matches[0]
 
 
 def _search_generic(jobdefs, desc, input_type):

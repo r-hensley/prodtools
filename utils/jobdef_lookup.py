@@ -106,28 +106,24 @@ def _generic_desc_matches(template_desc, desc):
     return _generic_desc_capture(template_desc, desc) is not None
 
 
-# Output tier -> input tier its producing stage consumes (reco: dig->mcs, etc.).
-_OUTPUT_TO_INPUT_TIER = {'dig': 'dts', 'mcs': 'dig', 'nts': 'mcs', 'ntd': 'mcs'}
-
-
 def derive_generic_input(tarball_path, target):
     """Map a --target OUTPUT file to its INPUT art file for a generic cnf: strip
-    the output-template suffix -> input desc, map tier (mcs->dig), and find the
-    input file in SAM by desc + sequencer (any dsconf)."""
+    the output-template suffix -> input desc, map tier (mcs->dig) via the chain,
+    and find the input file in SAM by desc + sequencer (any dsconf)."""
     from utils.samweb_wrapper import list_files
+    from utils.chain_emit import input_tier_for_output
     t = Mu2eName.parse(target)
-    in_tier = _OUTPUT_TO_INPUT_TIER.get(t.tier)
+    in_tier = input_tier_for_output(t.tier)
     input_desc = None
     for tmpl, tier in _raw_outfile_descs(tarball_path):
         if tier == t.tier:
             input_desc = _generic_desc_capture(tmpl, t.description)
             if input_desc:
                 break
-    if not (input_desc and in_tier):
+    if not input_desc:
         raise ValueError(f"cannot derive input for target '{target}'")
-    dim = (f"dh.dataset like '{in_tier}.mu2e.{input_desc}.%.art' "
-           f"and run_number {int(t.sequencer.split('_')[0])}")
-    matches = [f for f in list_files(dim) if f.endswith(f'.{t.sequencer}.art')]
+    matches = list_files(f"dh.dataset like '{in_tier}.mu2e.{input_desc}.%.art' "
+                         f"and dh.sequencer {t.sequencer}")
     if not matches:
         raise ValueError(f"no {in_tier} input for desc '{input_desc}' seq '{t.sequencer}'")
     return matches[0]

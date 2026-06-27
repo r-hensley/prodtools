@@ -129,13 +129,12 @@ def main():
         # file we can derive the input and generate; a bare --dataset has no
         # sequencer, so report how to generate instead of crashing in write_fcl.
         if is_generic_cnf(tarball_path):
+            print(f"Matched generic cnf: {tarball_path}")
             if args.target:
                 fname = derive_generic_input(tarball_path, args.target)
-                print(f"Matched generic cnf: {tarball_path}")
                 print(f"target {args.target} -> input {fname}")
                 write_fcl_direct_input(tarball_path, fname, args.loc, args.proto)
                 return
-            print(f"Matched generic cnf: {tarball_path}")
             print("This is a generic tarball (output desc deferred as {desc}); a bare "
                   "--dataset has no sequencer to resolve it.")
             print("Generate by passing the output file via --target, or an input via --fname:")

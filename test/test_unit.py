@@ -2174,10 +2174,10 @@ class TestGenericCnfDiscovery(unittest.TestCase):
             with patch('utils.samweb_wrapper.list_files', return_value=[dig]) as lf:
                 got = jobdef_lookup.derive_generic_input(tar, target)
             self.assertEqual(got, dig)
-            # queried the dig tier (mcs->dig) for the stripped desc + run
+            # queried the dig tier (mcs->dig) for the stripped desc + exact seq
             dim = lf.call_args[0][0]
             self.assertIn("dig.mu2e.CeEndpoint.", dim)
-            self.assertIn("run_number 1470", dim)
+            self.assertIn("dh.sequencer 001470_00000004", dim)
         finally:
             os.unlink(tar)
 
@@ -2823,6 +2823,18 @@ class TestChainEmit(unittest.TestCase):
         from utils import chain_emit
         with self.assertRaises(ValueError):
             chain_emit.stage_for_tier("nts")
+
+    def test_input_tier_for_output(self):
+        from utils import chain_emit
+        self.assertEqual(chain_emit.input_tier_for_output("mcs"), "dig")
+        self.assertEqual(chain_emit.input_tier_for_output("dig"), "dts")
+        self.assertEqual(chain_emit.input_tier_for_output("nts"), "mcs")
+        self.assertEqual(chain_emit.input_tier_for_output("ntd"), "mcs")
+
+    def test_input_tier_for_output_unknown_raises(self):
+        from utils import chain_emit
+        with self.assertRaises(ValueError):
+            chain_emit.input_tier_for_output("dts")
 
     def test_family_of(self):
         from utils import chain_emit

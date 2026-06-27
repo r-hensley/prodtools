@@ -2069,6 +2069,88 @@ class TestGenericTarballGuard(unittest.TestCase):
             guard.assert_not_called()
 
 
+def _perdesc_mcs_jobpars(desc='CeEndpoint', dsconf='TestConf'):
+    """A normal (non-generic) reco-style cnf: concrete output desc, RootInput so
+    the sequencer resolves from the input file."""
+    return {
+        "code": "", "setup": f"/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/{dsconf}/setup.sh",
+        "tbs": {
+            "seed": "services.SeedService.baseSeed", "subrunkey": "",
+            "event_id": {"source.maxEvents": 2147483647},
+            "outfiles": {"outputs.LoopHelixOutput.fileName":
+                         f"mcs.mu2e.{desc}.{dsconf}.sequencer.art"},
+            "inputs": {"source.fileNames":
+                       [1, [f"dig.mu2e.{desc}.{dsconf}.001430_00000000.art"]]},
+            "sequential_aux": False,
+        },
+        "jobname": f"cnf.mu2e.{desc}.{dsconf}.0.tar", "owner": "mu2e", "dsconf": dsconf,
+    }
+
+
+class TestGenericCnfDiscovery(unittest.TestCase):
+    """A generic cnf (output desc deferred as {desc}) must be discoverable by
+    the dataset->cnf matcher as a LAST resort: exact per-desc cnfs always win,
+    a generic cnf in the candidate list must not crash the scan, and fcldump
+    flags a generic match (is_generic_cnf) so it reports instead of generating."""
+
+    def test_generic_desc_matches(self):
+        from utils.jobdef_lookup import _generic_desc_matches
+        self.assertTrue(_generic_desc_matches('{desc}-KL', 'CeEndpoint-KL'))
+        self.assertTrue(_generic_desc_matches('{desc}', 'AnythingAtAll'))
+        self.assertFalse(_generic_desc_matches('{desc}-KL', 'CeEndpoint-CH'))
+        self.assertFalse(_generic_desc_matches('{desc}-KL', 'CeEndpoint'))
+
+    def test_is_generic_cnf_true(self):
+        from utils.jobdef_lookup import is_generic_cnf
+        tar = _make_tarball(_generic_reco_jobpars(), "#include \"OnSpill.fcl\"\n")
+        try:
+            self.assertTrue(is_generic_cnf(tar))
+        finally:
+            os.unlink(tar)
+
+    def test_is_generic_cnf_false_for_resolved(self):
+        from utils.jobdef_lookup import is_generic_cnf
+        tar = _make_tarball(_perdesc_mcs_jobpars(), "#include \"OnSpill.fcl\"\n")
+        try:
+            self.assertFalse(is_generic_cnf(tar))
+        finally:
+            os.unlink(tar)
+
+    def test_generic_fallback_match(self):
+        """Only a generic cnf in the list -> matched via the {desc} template."""
+        from unittest.mock import patch
+        from utils import jobdef_lookup
+        tar = _make_tarball(_generic_reco_jobpars(), "#include \"OnSpill.fcl\"\n")
+        try:
+            with patch.object(jobdef_lookup, 'locate_tarball', return_value=tar):
+                result = jobdef_lookup.find_matching_jobdef(
+                    ['cnf.mu2e.reco.TestConf.0.tar'], 'CeEndpointOnSpill', 'mcs')
+            self.assertEqual(result, tar)
+        finally:
+            os.unlink(tar)
+
+    def test_exact_wins_and_generic_does_not_crash(self):
+        """Per-desc cnf present alongside a generic one -> exact wins, and the
+        generic cnf in the candidate list does not abort the scan."""
+        from unittest.mock import patch
+        from utils import jobdef_lookup
+        perdesc = _make_tarball(_perdesc_mcs_jobpars(desc='CeEndpoint'),
+                                "#include \"OnSpill.fcl\"\n")
+        generic = _make_tarball(_generic_reco_jobpars(dsconf='TestConf'),
+                                "#include \"OnSpill.fcl\"\n")
+        mapping = {'cnf.mu2e.CeEndpoint.TestConf.0.tar': perdesc,
+                   'cnf.mu2e.reco.TestConf.0.tar': generic}
+        try:
+            with patch.object(jobdef_lookup, 'locate_tarball',
+                              side_effect=lambda j: mapping[j]):
+                result = jobdef_lookup.find_matching_jobdef(
+                    list(mapping.keys()), 'CeEndpoint', 'mcs')
+            self.assertEqual(result, perdesc)
+        finally:
+            os.unlink(perdesc)
+            os.unlink(generic)
+
+
 # ---------------------------------------------------------------------------
 # 24. _replace_placeholders defer_keys (jobdef.py)
 # ---------------------------------------------------------------------------

@@ -12,7 +12,7 @@ from utils.job_common import Mu2eName
 from utils.jobfcl import Mu2eJobFCL
 # Dataset→cnf resolution lives in jobdef_lookup so other tools (latestDatasets
 # --complete-only) can reuse it without importing this entry point.
-from utils.jobdef_lookup import list_jobdefs, find_matching_jobdef, set_verbose
+from utils.jobdef_lookup import list_jobdefs, find_matching_jobdef, set_verbose, is_generic_cnf
 
 
 def write_fcl_direct_input(tarball, fname, loc='tape', proto='root'):
@@ -118,7 +118,18 @@ def main():
         tarball_path = find_matching_jobdef(jobdefs, desc, input_type)
         if not tarball_path:
             p.error(f"No matching job definition found for source description: {desc}")
-        
+
+        # A generic cnf defers {desc}/sequencer to runtime, so it can't generate
+        # an fcl from a bare --dataset (no concrete input file -> no sequencer).
+        # Report the match and how to generate, instead of crashing in write_fcl.
+        if is_generic_cnf(tarball_path):
+            print(f"Matched generic cnf: {tarball_path}")
+            print("This is a generic tarball (output desc deferred as {desc}); a bare "
+                  "--dataset has no sequencer to resolve it.")
+            print("Generate for a specific input file with:")
+            print(f"  fcldump --local-jobdef {tarball_path} --fname <input art file>")
+            return
+
         # Generate FCL
         try:
             write_fcl(tarball_path, args.loc, args.proto, args.index, args.target)

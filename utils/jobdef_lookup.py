@@ -63,13 +63,69 @@ def list_jobdefs(dsconf):
         return []
 
 
+def _raw_outfile_descs(tarball_path):
+    """Raw output descriptions declared in a cnf's jobpars, WITHOUT resolving
+    the sequencer. Returns list of (description, tier) parsed from each
+    ``tbs.outfiles`` template. Safe on generic tarballs (whose {desc}/sequencer
+    are deferred and would make job_outputs() raise)."""
+    from utils.jobiodetail import Mu2eJobIO
+    out = []
+    try:
+        outfiles = Mu2eJobIO(tarball_path).json_data.get('tbs', {}).get('outfiles', {})
+    except Exception:
+        return out
+    for template in (outfiles or {}).values():
+        try:
+            n = Mu2eName.parse(template)
+        except ValueError:
+            continue
+        out.append((n.description, n.tier))
+    return out
+
+
+def is_generic_cnf(tarball_path):
+    """True if the cnf is a generic tarball: any output description still
+    carries the literal ``{desc}`` placeholder (deferred to runtime)."""
+    return any('{desc}' in d for d, _ in _raw_outfile_descs(tarball_path))
+
+
+def _generic_desc_matches(template_desc, desc):
+    """Does a {desc}-templated output description match a concrete request?
+    e.g. template ``{desc}-KL`` matches ``CeEndpoint-KL``. Literal parts are
+    regex-escaped; ``{desc}`` becomes a non-empty wildcard."""
+    import re
+    parts = template_desc.split('{desc}')
+    pattern = '(.+)'.join(re.escape(p) for p in parts)
+    return re.fullmatch(pattern, desc) is not None
+
+
+def _search_generic(jobdefs, desc, input_type):
+    """Lowest-priority pass: match a generic cnf whose {desc}-templated output
+    (of the right tier) can produce ``desc``. Used only when no exact per-desc
+    or output-name match exists, so exact cnfs always win."""
+    for jobdef in jobdefs:
+        try:
+            tarball_path = locate_tarball(jobdef)
+        except RuntimeError as e:
+            _log(f"Skipping {jobdef}: {e}")
+            continue
+        for tmpl_desc, tier in _raw_outfile_descs(tarball_path):
+            if '{desc}' in tmpl_desc and tier == input_type \
+                    and _generic_desc_matches(tmpl_desc, desc):
+                _log(f"  Matched generic cnf '{jobdef}' via template '{tmpl_desc}'")
+                return tarball_path
+    return None
+
+
 def find_matching_jobdef(jobdefs, desc, input_type=None):
     """Find the cnf tarball that produces output description ``desc``.
 
-    Two-pass search:
+    Three-pass search (exact wins, generic is last resort):
       1. Fast: pre-filter cnfs whose own desc matches ``desc`` (1:1 case).
       2. Fallback: scan all cnfs at the dsconf, matching on declared output
          filenames (catches the suffixed-output case).
+      3. Generic: match a generic cnf whose {desc}-templated output can produce
+         ``desc`` (e.g. cnf.mu2e.reco -> {desc}-KL matches CeEndpoint-KL).
 
     ``input_type`` is the tier of the dataset being resolved (e.g. 'dig'); only
     cnf outputs of that tier are matched.
@@ -82,7 +138,12 @@ def find_matching_jobdef(jobdefs, desc, input_type=None):
         return result
 
     _log(f"No 1:1 cnf desc match for '{desc}'; scanning {len(jobdefs)} cnfs at dsconf for output-name match...")
-    return _search_jobdefs(jobdefs, desc, input_type, name_filter=False, verbose_match=True)
+    result = _search_jobdefs(jobdefs, desc, input_type, name_filter=False, verbose_match=True)
+    if result:
+        return result
+
+    _log(f"No exact cnf for '{desc}'; checking for a generic ({{desc}}-templated) cnf...")
+    return _search_generic(jobdefs, desc, input_type)
 
 
 def _search_jobdefs(jobdefs, desc, input_type, name_filter, verbose_match=False):
@@ -105,7 +166,13 @@ def _search_jobdefs(jobdefs, desc, input_type, name_filter, verbose_match=False)
             _log(f"Skipping {jobdef}: {e}")
             continue
 
-        outputs = Mu2eJobIO(tarball_path).job_outputs(0)
+        try:
+            outputs = Mu2eJobIO(tarball_path).job_outputs(0)
+        except Exception as e:
+            # Generic tarballs defer {desc}/sequencer -> job_outputs() raises.
+            # They are handled by the generic pass; skip here, don't abort.
+            _log(f"Skipping {jobdef} in output scan ({e})")
+            continue
         for output_file in outputs.values():
             try:
                 out_name = Mu2eName.parse(output_file)

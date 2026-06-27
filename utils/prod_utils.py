@@ -71,7 +71,6 @@ def run(cmd, shell=False, retries=0, retry_delay=60):
             time.sleep(retry_delay)
         else:
             raise subprocess.CalledProcessError(return_code, cmd)
-    return return_code
 
 
 

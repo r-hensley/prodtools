@@ -349,10 +349,10 @@ def _validate_options_for_source_type(source_type: str, args_state: Dict) -> Non
             raise ValueError(f"Error: --events-per-job is not compatible with fcl files that use source type {source_type}.")
 
 
-def _parse_job_args(job_args: List[str], template_path: str, config: Dict = None) -> Tuple[Dict, str, bool]:
+def _parse_job_args(job_args: List[str], template_path: str, config: Dict = None) -> Tuple[Dict, bool]:
     """
     Parse mu2ejobdef CLI options and build complete TBS structure.
-    Returns: (tbs_dict, outdir, override_output_description)
+    Returns: (tbs_dict, override_output_description)
     """
     tbs: Dict[str, Any] = {}
     it = iter(job_args)
@@ -365,7 +365,6 @@ def _parse_job_args(job_args: List[str], template_path: str, config: Dict = None
         'sampling': {},
         'run_number': None,
         'events_per_job': None,
-        'outdir': None,
         'override_output_description': False,
         'fcl_mode': None,
         'fcl_template': None
@@ -393,7 +392,6 @@ def _parse_job_args(job_args: List[str], template_path: str, config: Dict = None
         '--samplinginput': lambda: parse_samplinginput(next(it)),
         '--run-number': lambda: int(next(it)),
         '--events-per-job': lambda: int(next(it)),
-        '--outdir': lambda: next(it),
         '--override-output-description': lambda: True,
         '--embed': lambda: ('embed', next(it)),
         '--include': lambda: ('include', next(it))
@@ -416,10 +414,9 @@ def _parse_job_args(job_args: List[str], template_path: str, config: Dict = None
                 # Map argument names to state keys
                 key_map = {
                     '--inputs': 'inputs_list',
-                    '--merge-factor': 'merge_factor', 
+                    '--merge-factor': 'merge_factor',
                     '--run-number': 'run_number',
-                    '--events-per-job': 'events_per_job',
-                    '--outdir': 'outdir'
+                    '--events-per-job': 'events_per_job'
                 }
                 if token in key_map:
                     args_state[key_map[token]] = result
@@ -584,7 +581,7 @@ def _parse_job_args(job_args: List[str], template_path: str, config: Dict = None
         if key not in ordered_tbs:
             ordered_tbs[key] = value
 
-    return ordered_tbs, None, args_state['override_output_description']
+    return ordered_tbs, args_state['override_output_description']
 
 
 def get_output_dataset_names(config: Dict) -> List[str]:
@@ -706,7 +703,7 @@ def create_jobdef(config: Dict, fcl_path: str = 'template.fcl', job_args: List[s
         print(' '.join(cmd_parts))
 
     # Parse job arguments and build TBS with template analysis using the resolved template path (like Perl's $templateresolved)
-    tbs, _, override_output_description = _parse_job_args(all_args, template_path, config)
+    tbs, override_output_description = _parse_job_args(all_args, template_path, config)
     
     # Use provided outdir (simple logic matching Perl version)
     # Use tarball_append if specified, otherwise use original desc

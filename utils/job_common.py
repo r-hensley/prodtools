@@ -244,25 +244,24 @@ class Mu2eJobBase:
         self.jobdef = jobdef_path
         self.json_data = self._extract_json()
 
-    def _extract_json(self) -> dict:
-        """Extract jobpars.json from tar file.
-        
-        Consolidated implementation from jobfcl.py, jobiodetail.py, and jobquery.py.
+    def _extract_member(self, suffix: str) -> bytes:
+        """Return the bytes of the first tar member whose name ends with ``suffix``.
+
+        Consolidated tarball member-scan used by _extract_json (jobpars.json) and
+        Mu2eJobFCL._extract_fcl (mu2e.fcl). Raises ValueError if none matches.
         """
         with tarfile.open(self.jobdef, 'r') as tar:
-            # Find jobpars.json member
-            json_member = None
             for member in tar.getmembers():
-                if member.name.endswith('jobpars.json'):
-                    json_member = member
-                    break
-            
-            if not json_member:
-                raise ValueError(f"jobpars.json not found in {self.jobdef}")
-            
-            # Extract and return JSON content
-            json_file = tar.extractfile(json_member)
-            return json.load(json_file)
+                if member.name.endswith(suffix):
+                    return tar.extractfile(member).read()
+        raise ValueError(f"{suffix} not found in {self.jobdef}")
+
+    def _extract_json(self) -> dict:
+        """Extract jobpars.json from the tarball.
+
+        Consolidated implementation from jobfcl.py, jobiodetail.py, and jobquery.py.
+        """
+        return json.loads(self._extract_member('jobpars.json'))
     
     def _my_random(self, *args) -> int:
         """Generate deterministic random number from inputs.

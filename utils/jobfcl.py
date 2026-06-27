@@ -8,7 +8,6 @@ import argparse
 import json
 import os
 import sys
-import tarfile
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 import re
@@ -113,21 +112,8 @@ class Mu2eJobFCL(Mu2eJobBase):
         return self._source_type
     
     def _extract_fcl(self) -> str:
-        """Extract mu2e.fcl from tar file."""
-        with tarfile.open(self.jobdef, 'r') as tar:
-            # Find mu2e.fcl member
-            fcl_member = None
-            for member in tar.getmembers():
-                if member.name.endswith('mu2e.fcl'):
-                    fcl_member = member
-                    break
-            
-            if not fcl_member:
-                raise ValueError(f"mu2e.fcl not found in {self.jobdef}")
-            
-            # Extract and return FCL content
-            fcl_file = tar.extractfile(fcl_member)
-            return fcl_file.read().decode('utf-8')
+        """Extract mu2e.fcl from the tarball."""
+        return self._extract_member('mu2e.fcl').decode('utf-8')
     
 
     

@@ -758,12 +758,8 @@ def is_already_expanded(configs):
         if not isinstance(config, dict):
             raise ValueError(f"Entry {i} is not a dictionary: {type(config)}")
         
-        # Check if this config has lists (needs expansion)
-        values = list(config.values())
-        has_lists = any(isinstance(v, list) for v in values)
-        
         # If any config has lists, the whole configuration needs expansion
-        if has_lists:
+        if any(isinstance(v, list) for v in config.values()):
             return False
     
     # If no configs have lists, they're all already expanded

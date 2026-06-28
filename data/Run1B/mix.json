@@ -461,7 +461,8 @@
   {
     "input_data": [
       {"dts.mu2e.CeEndpoint.Run1Ban-001.art": 1},
-      {"dts.mu2e.FlateMinus.Run1Ban-001.art": 1}
+      {"dts.mu2e.FlateMinus.Run1Ban-001.art": 1},
+      {"dts.mu2e.FlatGamma.Run1Ban-001.art": 1}
     ],
     "pileup_datasets": [{
       "dts.mu2e.MuBeamFlashCat.Run1Ban.art": 1,

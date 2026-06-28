@@ -457,4 +457,88 @@
       }
     ]
   }
+  ,
+  {
+    "input_data": [
+      {"dts.mu2e.CeEndpoint.Run1Ban-001.art": 1},
+      {"dts.mu2e.FlateMinus.Run1Ban-001.art": 1}
+    ],
+    "pileup_datasets": [{
+      "dts.mu2e.MuBeamFlashCat.Run1Ban.art": 1,
+      "dts.mu2e.EleBeamFlashCat.Run1Ban.art": 25,
+      "dts.mu2e.NeutralsFlashCat.Run1Ban.art": 1,
+      "dts.mu2e.MuStopPileupCat.Run1Ban.art": 2
+    }],
+    "dsconf": ["Run1Ban_best_v1_4-000"],
+    "mixconf": [0],
+    "pbeam": ["Mix1BB"],
+    "owner": ["mu2e"],
+    "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Ban/setup.sh"],
+    "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
+    "merge_events": [500],
+    "inloc": ["disk"],
+    "outloc": [{"dig.mu2e.*.art": "tape"}],
+    "fcl_overrides": [
+      {
+        "services.DbService.purpose": "Sim_best",
+        "services.DbService.version": "v1_4",
+        "services.DbService.textFile": ["Production/data/SimEfficiencies2_Run1Ban.txt"],
+        "services.DbService.nearestMatch": "true",
+        "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_DSOff.txt",
+        "services.GeometryService.inputFile": "Offline/Mu2eG4/geom/geom_run1_b_v40.txt",
+        "services.ProditionsService.strawElectronics.digitizationEnd": "1650",
+        "physics.producers.CaloShowerROMaker.digitizationEnd": "1650",
+        "physics.producers.CaloDigiMaker.digitizationEnd": "1650",
+        "outputs.Output.fileName": "dig.owner.{desc}.version.sequencer.art",
+        "outputs.Output.RejectEvents": [],
+        "outputs.Output.SelectEvents": [],
+        "#include": "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl",
+        "physics.producers.PBISim.extendedMean": "5.92e6",
+        "physics.producers.PBISim.cutMax": "35.5e6"
+      }
+    ]
+  }
+  ,
+  {
+    "input_data": [
+      {"dts.mu2e.NoPrimary.Run1Ban.art": 1}
+    ],
+    "pileup_datasets": [{
+      "dts.mu2e.MuBeamFlashCat.Run1Ban.art": 1,
+      "dts.mu2e.EleBeamFlashCat.Run1Ban.art": 25,
+      "dts.mu2e.NeutralsFlashCat.Run1Ban.art": 1,
+      "dts.mu2e.MuStopPileupCat.Run1Ban.art": 2
+    }],
+    "dsconf": ["Run1Ban_best_v1_4-000"],
+    "mixconf": [0],
+    "pbeam": ["Mix1BB"],
+    "owner": ["mu2e"],
+    "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Ban/setup.sh"],
+    "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
+    "merge_events": [500],
+    "inloc": ["disk"],
+    "outloc": [{"dig.mu2e.*.art": "tape"}],
+    "fcl_overrides": [
+      {
+        "services.DbService.purpose": "Sim_best",
+        "services.DbService.version": "v1_4",
+        "services.DbService.textFile": ["Production/data/SimEfficiencies2_Run1Ban.txt"],
+        "services.DbService.nearestMatch": "true",
+        "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_DSOff.txt",
+        "services.GeometryService.inputFile": "Offline/Mu2eG4/geom/geom_run1_b_v40.txt",
+        "services.ProditionsService.strawElectronics.digitizationEnd": "1650",
+        "physics.producers.CaloShowerROMaker.digitizationEnd": "1650",
+        "physics.producers.CaloDigiMaker.digitizationEnd": "1650",
+        "outputs.Output.fileName": "dig.owner.{desc}.version.sequencer.art",
+        "outputs.Output.RejectEvents": [],
+        "outputs.Output.SelectEvents": [],
+        "#include": [
+          "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl",
+          "Production/JobConfig/mixing/NoPrimary.fcl"
+        ],
+        "physics.producers.PBISim.extendedMean": "5.92e6",
+        "physics.producers.PBISim.cutMax": "35.5e6"
+      }
+    ]
+  }
 ]

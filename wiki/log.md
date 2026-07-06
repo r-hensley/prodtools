@@ -465,3 +465,7 @@ Note: samweb_wrapper deepened (q_* builders + fail-loud named queries, absorbed 
 ## [2026-07-06] update | Review quick wins + test hygiene
 Pages updated: none
 Note: chain_emit.output_datasets now parses/builds via Mu2eName (last core-path grammar bypass gone); owner-default USER->mu2e consolidated into job_common.default_owner() (was copied in jobdef.py x2, json2jobdef.py, Mu2eJobBase); DB-backed tests skipUnless(SQLAlchemy) so plain-ops runs are clean — OK (skipped=11) without pyenv ana, 292/292 OK with it.
+
+## [2026-07-06] lint | 6 errors, 2 warnings, 3 info
+Report: [[lint-2026-07-06]]
+Fixed: all 6 broken-link sites (3 recurring slugs: raw-doc refs in pbi-sequence-workflow / extend-jobdef-per-index-overrides / metacat-reference converted to plain wiki/raw paths; memory cross-ref in mu2ename-unified-grammar converted to plain text; prodtools-prd gotcha updated), index contradiction on file-resolver plan page (proposed → implemented), orphan fixed via backlink from 2026-07-02-jobdef-arithmetic-and-tbs-njobs. Remaining: overview.md refresh recommended (stale since 2026-06-07).

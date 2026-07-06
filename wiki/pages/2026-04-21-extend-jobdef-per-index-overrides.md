@@ -92,5 +92,5 @@ config sets it), so existing workflows produce byte-identical tarballs.
 ## Related
 
 - [[pbi-sequence-workflow]] — how to use the extension
-- Source: [[2026-04-21-pbi-sequence-implementation]] (ingested
-  conversation)
+- Source: `wiki/raw/2026-04-21-pbi-sequence-implementation.md` (ingested
+  conversation; raw doc, not a page)

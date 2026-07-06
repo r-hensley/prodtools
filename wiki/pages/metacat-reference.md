@@ -236,4 +236,4 @@ upstream skills. Low-effort PR; they have 4 contributors.
 
 - [[pbi-sequence-workflow]] — production chain this reference supports
 - [[input-data-chunk-mode]], [[input-data-dir-shape]] — input_data shapes
-- Source: [[2026-04-24-mu2e-aitools-skills]]
+- Source: `wiki/raw/2026-04-24-mu2e-aitools-skills.md` (raw doc, not a page)

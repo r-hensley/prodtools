@@ -119,5 +119,5 @@ in `jobdef.py`, the parser itself in `job_common.py`).
   `.dsconf_version`
 - [[2026-04-30-phase2-direct-jobsub-implementation]] — `tier_class`
   drives the direct-mode storage-modify scope
-- [[outloc-lives-in-poms-map-not-cnf]] — cnf naming and `.log_dataset()`
-  derivation
+- memory `reference_outloc_lives_in_poms_map_not_cnf` — cnf naming and
+  `.log_dataset()` derivation (memory, not a wiki page)

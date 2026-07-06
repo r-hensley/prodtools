@@ -113,3 +113,5 @@ format change to take deliberately, like `tbs.njobs` was, if/when needed.
 - [[2026-04-30-phase2-direct-jobsub-implementation]] — the backend that
   needed self-descriptive tarballs
 - [[json2jobdef-staging-workflow]] — where declared `njobs` enters configs
+- [[2026-07-03-file-resolver-and-sam-query-plan]] — the follow-on refactor
+  (candidates #1+#3, implemented 2026-07-06)

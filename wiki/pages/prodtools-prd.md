@@ -277,7 +277,7 @@ list, for specifics.)
 - **Phase 2 cutover criteria.** What's the threshold for switching production from `mu2ejobsub` to direct `jobsub_submit`? Currently shadow-validated per `reference_phase2_direct_submit.md`; no formal go/no-go.
 - **Cross-purpose POMS map extension.** `MDC2025-025` was extended on 2026-05-05 to hold an unrelated MDC2025am reco campaign alongside the PBI chain. The "extend in place" rule (`feedback_extend_existing_poms_map.md`) was scoped to "later stages of the same workflow" — we now have a precedent for cross-purpose extension; convention should be revisited.
 - **MetaCat migration depth.** Read-only MCP is in place; how much of `samweb_wrapper.py` should migrate to `metacat_client`?
-- **Pre-existing broken wiki slugs** flagged in lint reports since 2026-04-22: `[[2026-04-21-pbi-sequence-implementation]]` and `[[2026-04-24-mu2e-aitools-skills]]`. Either publish synthesis pages or scrub the references. (Third historical slug, `run1bai-campaign`, was a typo for [[run1bak-campaign]] and has been corrected.)
+- **Pre-existing broken wiki slugs** (flagged in lints 2026-04-22 through 2026-05-29) were resolved 2026-07-06: the `2026-04-21-pbi-sequence-implementation` and `2026-04-24-mu2e-aitools-skills` references now point at their `wiki/raw/` docs as plain paths instead of `[[]]` page links. (Third historical slug, `run1bai-campaign`, was a typo for [[run1bak-campaign]] and had been corrected earlier.)
 
 ## Related
 

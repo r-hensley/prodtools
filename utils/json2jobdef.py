@@ -14,12 +14,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import argparse
 import json
-import subprocess
 from pathlib import Path
 from utils.prod_utils import *
 from utils.mixing_utils import *
 from utils.config_utils import get_tarball_desc, prepare_fields_for_job
-from utils.job_common import default_owner
+from utils.job_common import Mu2eName, default_owner
 from utils.jobquery import Mu2eJobPars
 from utils.jobdef import create_jobdef, get_output_dataset_names
 from utils.jobfcl import validate_output_filenames
@@ -123,13 +122,14 @@ def _split_text_file_input(config):
     # producing standard filenames like
     #     dts.mu2e.PBINormal_33344.MDC2025ai.001430_00000000.art
     run = int(config.get('run', 0))
-    slug = f"dts.{config.get('owner', 'mu2e')}.{config['desc']}.{config['dsconf']}"
     lines = src.read_text().splitlines()
     chunk_names = []
     for i in range(0, len(lines), split_lines):
         idx = i // split_lines
         chunk_seq = f"{run:06d}_{idx:08d}"
-        chunk_path = chunks_dir / f"{slug}.{chunk_seq}.txt"
+        chunk_path = chunks_dir / str(Mu2eName.build(
+            tier='dts', owner=config['owner'], description=config['desc'],
+            dsconf=config['dsconf'], sequencer=chunk_seq, extension='txt'))
         chunk_path.write_text("\n".join(lines[i:i + split_lines]) + "\n")
         chunk_names.append(chunk_path.name)
 
@@ -276,7 +276,8 @@ def _next_version(config):
     max(existing versions) + 1, or 0 if none exist.
     """
     desc = get_tarball_desc(config) or config['desc']
-    dataset = f"cnf.{config['owner']}.{desc}.{config['dsconf']}.tar"
+    dataset = str(Mu2eName.build(tier='cnf', owner=config['owner'], description=desc,
+                                 dsconf=config['dsconf'], extension='tar'))
 
     try:
         files = files_in_dataset(dataset)
@@ -321,24 +322,27 @@ def _compute_extend_exclusions(config):
     return exclude_files
 
 
+def _cnf_name(config, extension):
+    """Canonical cnf name for this config via Mu2eName.build (validates
+    fields — a desc/dsconf containing '.' fails loudly here instead of
+    producing an unparseable name downstream)."""
+    desc = get_tarball_desc(config) or config['desc']
+    return str(Mu2eName.build(
+        tier='cnf', owner=config['owner'], description=desc,
+        dsconf=config['dsconf'], sequencer=str(config.get('version', 0)),
+        extension=extension))
+
 def get_parfile_name(config):
     """Generate consistent parfile name from config."""
-    desc = get_tarball_desc(config) or config['desc']
-    version = config.get('version', 0)
-    return f"cnf.{config['owner']}.{desc}.{config['dsconf']}.{version}.tar"
+    return _cnf_name(config, 'tar')
 
 def get_fcl_name(config):
     """Generate consistent FCL filename from config."""
-    desc = get_tarball_desc(config) or config['desc']
-    version = config.get('version', 0)
-    return f"cnf.{config['owner']}.{desc}.{config['dsconf']}.{version}.fcl"
+    return _cnf_name(config, 'fcl')
 
-def validate_required_fields(config, required_fields=None):
+def validate_required_fields(config):
     """Validate that config has all required fields."""
-    if required_fields is None:
-        required_fields = ('simjob_setup', 'fcl', 'dsconf', 'outloc')
-    
-    for req in required_fields:
+    for req in ('simjob_setup', 'fcl', 'dsconf', 'outloc'):
         if not config.get(req):
             sys.exit(f"Missing required field: {req}")
 
@@ -542,7 +546,6 @@ def main():
     p.add_argument('--verbose', action='store_true', help='Verbose logging')
     p.add_argument('--no-cleanup', action='store_true', help='Keep temporary files (inputs.txt, template.fcl, *Cat.txt)')
     p.add_argument('--jobdefs', help='Custom filename for jobdefs list (default: jobdefs_list.json)')
-    p.add_argument('--json-output', action='store_true', help='Output structured JSON instead of human-readable text')
     p.add_argument('--extend', action='store_true',
                    help='Create delta job definition excluding already-processed inputs. '
                         'Auto-increments tarball version.')
@@ -602,23 +605,7 @@ def main():
         print(f"\n{'='*60}")
         print(f"Creating index definition from {jobdefs_file}")
         print(f"{'='*60}")
-        
-        # Load jobdefs to calculate total jobs
-        with open(jobdefs_file, 'r') as f:
-            jobdefs = json.load(f)
-        
-        total_jobs = sum(j.get('njobs', 0) for j in jobdefs)
-        
-        # Print summary
-        for i, j in enumerate(jobdefs):
-            outputs = ", ".join(f"{o['dataset']}→{o['location']}" for o in j['outputs'])
-            print(f"[{i}] {j['tarball']}: {j['njobs']} jobs, input={j['inloc']}, outputs={outputs}")
-        
-        print(f"\nTotal: {total_jobs} jobs")
-        
-        # Create index definition
-        map_stem = Path(jobdefs_file).stem
-        create_index_definition(map_stem, total_jobs, "etc.mu2e.index.000.txt")
+        summarize_and_index(jobdefs_file, prod=True)
 
 def _build_job_args(config):
     """Dispatch on `determine_job_type(config)` and return the per-mode
@@ -627,11 +614,11 @@ def _build_job_args(config):
     job_type = determine_job_type(config)
 
     if job_type == 'resampler':
+        input_data = config['input_data']
+        if not isinstance(input_data, dict):
+            raise ValueError(f"input_data must be a dict, got {type(input_data)}")
+        first_dataset = list(input_data.keys())[0]
         try:
-            input_data = config['input_data']
-            if not isinstance(input_data, dict):
-                raise ValueError(f"input_data must be a dict, got {type(input_data)}")
-            first_dataset = list(input_data.keys())[0]
             nfiles, nevts = get_def_counts(first_dataset)
             config['_max_events_to_skip'] = nevts // nfiles
         except Exception as e:
@@ -700,9 +687,6 @@ def process_single_entry(config, json_output=True, pushout=False, no_cleanup=Tru
     # This extracts the 3rd field from dataset name (e.g., "ensembleMDS3a" from "dts.mu2e.ensembleMDS3a.MDC2025af.art")
     if not config.get('desc'):
         config = prepare_fields_for_job(config, job_type='standard')
-    
-    # Store the original FCL path for source type detection
-    original_fcl_path = config['fcl']
     
     # Extend mode: exclude already-processed input files and auto-increment version
     exclude_files = None

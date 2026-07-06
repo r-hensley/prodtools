@@ -27,6 +27,10 @@ from .job_common import Mu2eName, remove_storage_prefix
 XROOT_READ_PREFIX = 'xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/'
 XROOT_STAT_PREFIX = 'root://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/'
 
+# SAM location records may carry a trailing "(2290@fm4794l8)" suffix.
+# Compiled once — url() runs per input file in the worker inner loop.
+_LOCATION_SUFFIX_RE = re.compile(r'\([^)]+\)$')
+
 
 # ---------------------------------------------------------------------------
 # Roots (env-overridable)
@@ -146,6 +150,9 @@ def xroot_read_url(pnfs_path: str) -> str:
 # Existence probes
 # ---------------------------------------------------------------------------
 
+_gfal2_ctx = None
+
+
 def resilient_file_exists(pnfs_path: str) -> bool:
     """Check if a resilient /pnfs/ file exists via gfal2 xrootd.
 
@@ -153,12 +160,18 @@ def resilient_file_exists(pnfs_path: str) -> bool:
     both interactive nodes and grid worker nodes (no POSIX dCache
     required). Returns False if gfal2 is unavailable or the stat fails,
     causing the caller to fall through to SAM lookup.
+
+    The gfal2 context is created once and reused — context creation loads
+    plugins and dominates the cost of a per-file stat (a resilient mixing
+    job checks ~90 files).
     """
+    global _gfal2_ctx
     xroot_url = pnfs_path.replace('/pnfs/', XROOT_STAT_PREFIX, 1)
     try:
-        import gfal2
-        ctx = gfal2.creat_context()
-        ctx.stat(xroot_url)
+        if _gfal2_ctx is None:
+            import gfal2
+            _gfal2_ctx = gfal2.creat_context()
+        _gfal2_ctx.stat(xroot_url)
         return True
     except Exception:
         return False
@@ -183,6 +196,39 @@ class FileResolver:
     def __init__(self, inloc: str = 'tape', proto: str = 'file'):
         self.inloc = inloc
         self.proto = proto
+        # filename -> SAM locations list, filled by prefetch(). Consulted
+        # before issuing a per-file locate; misses fall through to the
+        # per-file call so error semantics are unchanged.
+        self._location_cache = {}
+
+    def _sam_always_used(self) -> bool:
+        """True when locate() goes to SAM for every file: non-dir:,
+        non-stash, non-resilient inloc (those probe CVMFS/gfal2 first),
+        with a proto that needs a physical path at all."""
+        return (not self.inloc.startswith('dir:')
+                and self.inloc not in ('stash', 'resilient')
+                and self.proto in ('file', 'root'))
+
+    def prefetch(self, filenames) -> None:
+        """Batch-locate `filenames` in one SAM round-trip (vs one per file
+        — a mixing job resolves ~90 files). Best-effort: on any failure the
+        cache stays empty and per-file resolution proceeds exactly as
+        before. No-op for inlocs that don't deterministically hit SAM, so
+        e.g. fully-resilient jobs don't pay a SAM call they never made."""
+        if not self._sam_always_used():
+            return
+        todo = [f for f in filenames if f not in self._location_cache]
+        if not todo:
+            return
+        try:
+            from .samweb_wrapper import locate_files_strict
+            result = locate_files_strict(todo)
+            if isinstance(result, dict):
+                for fname, locs in result.items():
+                    if isinstance(locs, list):
+                        self._location_cache[fname] = locs
+        except Exception:
+            pass
 
     def locate(self, filename: str) -> str:
         """Physical path for a file (no protocol formatting)."""
@@ -205,11 +251,13 @@ class FileResolver:
         return self._locate_via_sam(filename)
 
     def _locate_via_sam(self, filename: str) -> str:
-        from .samweb_wrapper import locate_file_strict
-        try:
-            locations = locate_file_strict(filename)
-        except Exception as e:
-            raise ValueError(f"Could not locate file: {filename}: {e}")
+        locations = self._location_cache.get(filename)
+        if locations is None:
+            from .samweb_wrapper import locate_file_strict
+            try:
+                locations = locate_file_strict(filename)
+            except Exception as e:
+                raise ValueError(f"Could not locate file: {filename}: {e}")
 
         if not locations:
             raise ValueError(f"Could not locate file: {filename}")
@@ -247,7 +295,7 @@ class FileResolver:
         clean_path = remove_storage_prefix(physical_path)
 
         # Remove file location suffix like (2290@fm4794l8) if present
-        clean_path = re.sub(r'\([^)]+\)$', '', clean_path)
+        clean_path = _LOCATION_SUFFIX_RE.sub('', clean_path)
 
         if not clean_path.endswith(filename):
             clean_path = clean_path + '/' + filename

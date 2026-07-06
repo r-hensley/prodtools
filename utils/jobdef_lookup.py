@@ -277,8 +277,9 @@ def output_njobs_map(dsconf):
     for jobdef in list_jobdefs(dsconf):
         try:
             tarball = locate_tarball(jobdef)
-            njobs = Mu2eJobPars(tarball).njobs()
-            outputs = Mu2eJobPars(tarball).job_outputs(0)
+            jp = Mu2eJobPars(tarball)
+            njobs = jp.njobs()
+            outputs = jp.job_outputs(0)
         except Exception as e:
             _log(f"Skipping {jobdef}: {e}")
             continue

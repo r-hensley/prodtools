@@ -27,7 +27,6 @@ Examples:
 
 import argparse
 import os
-import sys
 from samweb_wrapper import file_lineage, list_definition_files, get_samweb_wrapper
 from genFilterEff import process_dataset
 from job_common import Mu2eName
@@ -258,10 +257,10 @@ def main():
         import subprocess
         
         def convert_to_format(format_ext):
-            output_path = f"{dataset_name}.{format_ext}"
+            output_path = f"{stem}.{format_ext}"
             subprocess.run(['mmdc', '-i', out_path, '-o', output_path], check=True)
             # mmdc creates files with -1 suffix, so rename it
-            actual_file = f"{dataset_name}-1.{format_ext}"
+            actual_file = f"{stem}-1.{format_ext}"
             if os.path.exists(actual_file):
                 os.rename(actual_file, output_path)
             print(f"{format_ext.upper()} diagram saved to {output_path}")

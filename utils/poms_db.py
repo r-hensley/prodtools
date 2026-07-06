@@ -4,7 +4,6 @@
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, Text, DateTime, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
-import os
 from datetime import datetime
 
 from utils.job_common import Mu2eName

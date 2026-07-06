@@ -4,11 +4,11 @@ Mixing utilities for Mu2e production scripts.
 """
 
 import copy
-import sys
 import itertools
+import json
 from .prod_utils import *
 from .samweb_wrapper import files_in_dataset
-from .config_utils import _get_first_if_list, prepare_fields_for_job, get_tarball_desc
+from .config_utils import _get_first_if_list, prepare_fields_for_job
 
 def _create_pileup_catalog(dataset, filename):
     """Helper: create pileup catalog file from datasets with merge factors.
@@ -165,7 +165,9 @@ def expand_configs(configs):
     Returns:
         List of expanded job configurations
     """
-    # Generate jobs for each configuration
+    # Generate jobs for each configuration. One expansion path handles
+    # every shape: all-list, mixed list/non-list, and fully-scalar configs
+    # (the previous separate all-list branch was a copy of the mixed one).
     all_jobs = []
 
     for i, config in enumerate(configs):
@@ -173,53 +175,32 @@ def expand_configs(configs):
         if not isinstance(config, dict):
             raise ValueError(f"Configuration at index {i} is not a dictionary: {type(config)} - {config}")
 
-        # Check if this config is already expanded (has non-list values)
-        has_non_lists = any(not isinstance(value, list) for value in config.values())
+        list_fields = {k: v for k, v in config.items() if isinstance(v, list)}
+        non_list_fields = {k: v for k, v in config.items() if not isinstance(v, list)}
 
-        if has_non_lists:
-            # Config has mixed list and non-list values - need partial expansion
-            # Find which fields are lists and need expansion
-            list_fields = {k: v for k, v in config.items() if isinstance(v, list)}
-            non_list_fields = {k: v for k, v in config.items() if not isinstance(v, list)}
-
-            if list_fields:
-                # Generate combinations for list fields, keeping non-list fields constant
-                param_names = list(list_fields.keys())
-                param_values = list(list_fields.values())
-
-                for combination in itertools.product(*param_values):
-                    # Create job with this combination
-                    job = dict(zip(param_names, combination))
-                    # Add the non-list fields (create deep copy to avoid reference issues)
-                    job.update(copy.deepcopy(non_list_fields))
-
-                    # Ensure fcl_overrides is completely fresh for each job
-                    if 'fcl_overrides' in job:
-                        job['fcl_overrides'] = copy.deepcopy(_get_first_if_list(config.get('fcl_overrides', {})))
-
-                    # Auto-generate desc; use mixing if this config has pbeam
-                    job = prepare_fields_for_job(job, _job_type_for_config(job))
-
-                    all_jobs.append(job)
-            else:
-                # All values are non-list, just add directly
-                config = prepare_fields_for_job(config, _job_type_for_config(config))
-                all_jobs.append(config)
-            continue
-
-        # Validate all values are lists for expansion
-        for key, value in config.items():
-            if not isinstance(value, list):
-                raise ValueError(f"All values must be lists. Found non-list value for key '{key}': {value}")
+        for key, value in list_fields.items():
             if len(value) == 0:
                 raise ValueError(f"List for key '{key}' is empty. All lists must have at least one value.")
 
-        # Generate all combinations of list parameters
-        param_names = list(config.keys())
+        if not list_fields:
+            # All values are non-list (already expanded), just add directly
+            config = prepare_fields_for_job(config, _job_type_for_config(config))
+            all_jobs.append(config)
+            continue
 
-        for combination in itertools.product(*config.values()):
+        # Generate combinations for list fields, keeping non-list fields constant
+        param_names = list(list_fields.keys())
+
+        for combination in itertools.product(*list_fields.values()):
             # Create job with this combination
             job = dict(zip(param_names, combination))
+            # Add the non-list fields (create deep copy to avoid reference issues)
+            job.update(copy.deepcopy(non_list_fields))
+
+            # Ensure fcl_overrides is completely fresh for each job
+            if 'fcl_overrides' in job:
+                job['fcl_overrides'] = copy.deepcopy(_get_first_if_list(config.get('fcl_overrides', {})))
+
             # Auto-generate desc; use mixing if this config has pbeam
             job = prepare_fields_for_job(job, _job_type_for_config(job))
 

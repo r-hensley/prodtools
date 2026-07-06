@@ -12,11 +12,13 @@ from pathlib import Path
 
 # Handle both module and standalone imports
 try:
-    from .job_common import get_samweb_wrapper, Mu2eName
+    from .job_common import Mu2eName, remove_storage_prefix
+    from .samweb_wrapper import get_samweb_wrapper
 except ImportError:
     # When running as standalone script
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from utils.job_common import get_samweb_wrapper, Mu2eName
+    from utils.job_common import Mu2eName, remove_storage_prefix
+    from utils.samweb_wrapper import get_samweb_wrapper
 
 
 def _dataset_dir(dsname: str, location: str) -> str:
@@ -162,9 +164,8 @@ def get_definition_files(definition_name: str) -> List[str]:
                     continue
                 
                 full_path = location_info['full_path']
-                
+
                 # Remove storage system prefixes
-                from utils.job_common import remove_storage_prefix
                 full_path = remove_storage_prefix(full_path)
                 
                 if full_path.startswith('/'):

@@ -11,7 +11,6 @@ from typing import Optional, Dict
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from .poms_db import Job, JobOutput, DatasetInfo
-from .samweb_wrapper import list_definition_files, locate_file_full
 
 
 def get_default_db_path() -> str:
@@ -53,40 +52,20 @@ def _build_dataset_info_map(session, jobs):
 _location_cache: Dict[str, str] = {}
 
 
-def _normalize_location_from_path(path: str) -> str:
-    if not path:
-        return 'N/A'
-    if path.startswith('enstore'):
-        return 'enstore'
-    if path.startswith('dcache'):
-        return 'dcache'
-    return 'N/A'
-
-
 def _infer_location(dataset: str) -> str:
-    if dataset in _location_cache:
-        return _location_cache[dataset]
+    """Cached wrapper around db_builder._infer_dataset_location (the single
+    home of the enstore/dcache classifier + SAM inference walk). Imports
+    lazily so the dashboard's import of this module stays light."""
+    if dataset not in _location_cache:
+        from .db_builder import _infer_dataset_location
+        _location_cache[dataset] = _infer_dataset_location(dataset)
+    return _location_cache[dataset]
 
-    location = 'N/A'
-    try:
-        files = list_definition_files(dataset)
-        if files:
-            first_file = files[0]
-            locations = locate_file_full(first_file)
-            for entry in locations:
-                loc = entry.get('location') or entry.get('location_type')
-                if loc:
-                    location = _normalize_location_from_path(loc)
-                    break
-                full_path = entry.get('full_path')
-                if full_path:
-                    location = _normalize_location_from_path(full_path)
-                    break
-    except Exception:
-        location = 'N/A'
 
-    _location_cache[dataset] = location
-    return location
+def _normalize_location_from_path(path: str) -> str:
+    """Lazy delegate to db_builder._normalize_location (single home)."""
+    from .db_builder import _normalize_location
+    return _normalize_location(path)
 
 
 def _get_outputs(session, job: Job, info_map: dict[str, DatasetInfo]) -> list:

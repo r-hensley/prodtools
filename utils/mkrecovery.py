@@ -17,14 +17,17 @@ from utils.poms_entry import tarball_of, njobs_of
 def find_missing_indices(tarball_path, dataset, njobs):
     """Find job indices for missing files in a dataset."""
     job_io = Mu2eJobPars(tarball_path)
-    dataset_base = dataset.replace('.art', '')
-    
-    # Build mapping from filename to job index
+    # Build mapping from filename to job index. Structured compare — a
+    # substring test would false-match sibling dsconfs where one is a
+    # prefix of the other (e.g. ..._v1_4 vs ..._v1_4-000).
     file_to_job = {}
     for job_idx in range(njobs):
         for filename in job_io.job_outputs(job_idx).values():
-            if dataset_base in filename:
-                file_to_job[filename] = job_idx
+            try:
+                if str(Mu2eName.parse(filename).dataset) == dataset:
+                    file_to_job[filename] = job_idx
+            except ValueError:
+                continue
     
     expected_files = set(file_to_job.keys())
     actual_files = set(files_in_dataset(dataset))
@@ -41,7 +44,9 @@ def create_recovery_definition(defname, indices):
     """Create SAM recovery definition from job indices. Returns True on
     success; on failure prints the error and returns False (does not
     re-raise — caller can decide whether to abort the recovery flow)."""
-    etc_files = [f"etc.mu2e.index.000.{idx:07d}.txt" for idx in sorted(indices)]
+    etc_files = [str(Mu2eName.build(tier='etc', owner='mu2e', description='index',
+                                    dsconf='000', sequencer=f"{idx:07d}", extension='txt'))
+                 for idx in sorted(indices)]
     query = q_dataset_files_named("etc.mu2e.index.000.txt", etc_files)
     try:
         create_definition(defname, query)

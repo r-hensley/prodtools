@@ -249,6 +249,7 @@ class Mu2eJobBase:
     def __init__(self, jobdef_path: str):
         """Initialize with path to job definition tarball; extract jobpars.json."""
         self.jobdef = jobdef_path
+        self._member_cache = {}
         self.json_data = self._extract_json()
         # owner/dsconf feed the `.owner.`/`.version.` placeholder substitution
         # in job_outputs(). jobpars.json built by mu2ejobdef has no top-level
@@ -262,12 +263,18 @@ class Mu2eJobBase:
 
         Consolidated tarball member-scan used by _extract_json (jobpars.json) and
         Mu2eJobFCL._extract_fcl (mu2e.fcl). Raises ValueError if none matches.
+        Cached per instance — each call otherwise re-opens and fully
+        decompresses the tarball (generate_fcl reads mu2e.fcl twice per job).
         """
-        with tarfile.open(self.jobdef, 'r') as tar:
-            for member in tar.getmembers():
-                if member.name.endswith(suffix):
-                    return tar.extractfile(member).read()
-        raise ValueError(f"{suffix} not found in {self.jobdef}")
+        if suffix not in self._member_cache:
+            with tarfile.open(self.jobdef, 'r') as tar:
+                for member in tar.getmembers():
+                    if member.name.endswith(suffix):
+                        self._member_cache[suffix] = tar.extractfile(member).read()
+                        break
+                else:
+                    raise ValueError(f"{suffix} not found in {self.jobdef}")
+        return self._member_cache[suffix]
 
     def _extract_json(self) -> dict:
         """Extract jobpars.json from the tarball.
@@ -563,16 +570,4 @@ class Mu2eJobBase:
 
         return 0
 
-
-def get_samweb_wrapper():
-    """Get SAM web wrapper instance with consistent import handling.
-    
-    Returns:
-        SAMWebWrapper instance
-    """
-    try:
-        from .samweb_wrapper import get_samweb_wrapper as _get_samweb_wrapper
-    except ImportError:
-        from utils.samweb_wrapper import get_samweb_wrapper as _get_samweb_wrapper
-    return _get_samweb_wrapper()
 

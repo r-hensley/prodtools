@@ -9,7 +9,6 @@ import os
 import sys
 import glob
 import json
-import time
 from typing import Optional
 
 # Add parent directory to path for imports
@@ -404,16 +403,12 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
                     info.location = _infer_dataset_location(dataset_name)
 
                 # Ensure job_outputs row exists
-                if not session.query(JobOutput).filter_by(job_id=job.id, dataset=dataset_name).first():
-                    session.add(JobOutput(
-                        job_id=job.id,
-                        dataset=dataset_name,
-                        location=info.location if info.location and info.location != 'N/A' else None
-                    ))
-                else:
-                    job_output = session.query(JobOutput).filter_by(job_id=job.id, dataset=dataset_name).first()
-                    if job_output and not job_output.location:
-                        job_output.location = info.location if info.location and info.location != 'N/A' else job_output.location
+                job_output = session.query(JobOutput).filter_by(job_id=job.id, dataset=dataset_name).first()
+                loc = info.location if info.location and info.location != 'N/A' else None
+                if not job_output:
+                    session.add(JobOutput(job_id=job.id, dataset=dataset_name, location=loc))
+                elif not job_output.location and loc:
+                    job_output.location = loc
                 discovered += 1
 
         except Exception:

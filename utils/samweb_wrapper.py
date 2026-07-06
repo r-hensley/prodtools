@@ -272,6 +272,12 @@ class SAMWebWrapper:
         a misleading 'file not found'."""
         return self.client.locateFile(filename)
 
+    def locate_files_strict(self, filenames: List[str]) -> Dict[str, List[Dict]]:
+        """Batch locate without error swallowing: one HTTP round-trip for
+        the whole list instead of one per file. Same record shape as
+        locate_file_strict, keyed by filename."""
+        return self.client.locateFiles(filenames)
+
     def definitions_matching(self, defname: Optional[str] = None,
                              user: Optional[str] = None) -> List[str]:
         """List definitions filtered by name pattern (% wildcard) and/or
@@ -378,6 +384,10 @@ def files_like(pattern: str, sequencer: Optional[str] = None) -> List[str]:
 def locate_file_strict(filename: str) -> List[Dict]:
     """Locate a file, raising on SAM errors (no swallow)."""
     return get_samweb_wrapper().locate_file_strict(filename)
+
+def locate_files_strict(filenames: List[str]) -> Dict[str, List[Dict]]:
+    """Batch locate, raising on SAM errors (no swallow)."""
+    return get_samweb_wrapper().locate_files_strict(filenames)
 
 def definitions_matching(defname: Optional[str] = None,
                          user: Optional[str] = None) -> List[str]:

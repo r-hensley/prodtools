@@ -5,10 +5,8 @@ Generates FCL configuration files for Mu2e jobs.
 """
 
 import argparse
-import json
 import os
 import sys
-from pathlib import Path
 from typing import Dict, List, Optional, Union
 import re
 
@@ -179,8 +177,12 @@ class Mu2eJobFCL(Mu2eJobBase):
         if source_type == 'SamplingInput':
             config_lines.append(f"source.samplingSeed: {1 + index}")
         
-        # Input files with protocol handling
+        # Input files with protocol handling. Batch-locate everything in
+        # one SAM round-trip first — per-file lookups cost ~90 sequential
+        # HTTP calls for a mixing job (primaries + pileup).
         inputs = self.job_inputs(index)
+        self._resolver.prefetch(
+            [f for file_list in inputs.values() for f in file_list])
         for key, file_list in inputs.items():
             if file_list:
                 config_lines.append(f"{key}: [")

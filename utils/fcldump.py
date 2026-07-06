@@ -4,8 +4,6 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import argparse
-import subprocess
-import re
 from pathlib import Path
 from utils.prod_utils import write_fcl
 from utils.job_common import Mu2eName
@@ -22,7 +20,6 @@ def write_fcl_direct_input(tarball, fname, loc='tape', proto='root'):
     Parses desc and sequencer from fname, resolves output filenames, and writes
     a FCL that appends source.fileNames and output overrides to the base FCL.
     """
-    from pathlib import Path
     n = Mu2eName.parse(Path(fname).name)
     if not n.is_file:
         raise ValueError(

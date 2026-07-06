@@ -12,7 +12,6 @@ import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
-from .jobdef import create_jobdef
 from .job_common import Mu2eName
 from .jobfcl import Mu2eJobFCL
 from .jobquery import Mu2eJobPars
@@ -232,6 +231,27 @@ def write_fcl_template(base, overrides):
 def replace_file_extensions(input_str, first_field, last_field):
     """Replace the tier and extension fields of a Mu2e dot-name."""
     return str(Mu2eName.parse(input_str).as_tier(first_field).with_extension(last_field))
+
+def summarize_and_index(jobdefs_file, prod=True):
+    """Print the per-entry summary of a jobdefs/POMS-map JSON and (when
+    `prod`) recreate its SAM index definition. Shared by `json2jobdef
+    --prod` and the standalone `mkidxdef` CLI. Tolerates njobs-less
+    (generic) entries — they contribute 0 to the index size."""
+    with open(jobdefs_file, 'r') as f:
+        jobdefs = json.load(f)
+
+    total_jobs = sum(j.get('njobs', 0) for j in jobdefs)
+
+    for i, j in enumerate(jobdefs):
+        outputs = ", ".join(f"{o['dataset']}→{o['location']}" for o in j['outputs'])
+        print(f"[{i}] {j['tarball']}: {j.get('njobs', 0)} jobs, input={j['inloc']}, outputs={outputs}")
+
+    print(f"\nTotal: {total_jobs} jobs")
+
+    if prod:
+        map_stem = Path(jobdefs_file).stem
+        create_index_definition(map_stem, total_jobs, "etc.mu2e.index.000.txt")
+
 
 def create_index_definition(output_index_dataset, job_count, input_index_dataset):
     idx_name = f"i{output_index_dataset}"
@@ -555,7 +575,7 @@ def process_jobdef(jobdesc, fname, args):
         fcl = write_fcl(tarball, f"dir:{os.getcwd()}/indir", 'file', job_index_num)
         
         # Copy each file individually, detecting actual location from SAMWeb
-        run("echo 'Starting to copy input files locally'", shell=True)
+        print("Starting to copy input files locally")
         for file in all_files:
             locations = locate_file_full(file)
             if not locations or 'location_type' not in locations[0]:
@@ -664,9 +684,11 @@ def process_g4bl_jobdef(jobdesc_entry, fname, args):
     # SAM-named histogram + log files. `nts.` (simulation ntuple) is the
     # canonical Mu2e tier for ROOT TTrees from a sim job; matches the
     # metacat naming convention used everywhere else.
-    histo_file = f"nts.mu2e.{desc}.{dsconf}.{sequencer}.root"
+    histo_file = str(Mu2eName.build(tier='nts', owner='mu2e', description=desc,
+                                    dsconf=dsconf, sequencer=sequencer, extension='root'))
     histo_path = os.path.abspath(histo_file)
-    log_file = f"log.mu2e.{desc}.{dsconf}.{sequencer}.log"
+    log_file = str(Mu2eName.build(tier='log', owner='mu2e', description=desc,
+                                  dsconf=dsconf, sequencer=sequencer, extension='log'))
     log_path = os.path.abspath(log_file)
 
     # Native AL9 g4bl via spack. spack is a shell function defined by

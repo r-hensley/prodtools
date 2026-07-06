@@ -5,11 +5,9 @@ Extracts information from Mu2e job parameter files (.tar files containing jobpar
 """
 
 import argparse
-import json
 import os
 import sys
 import tarfile
-from pathlib import Path
 
 # Allow running this file directly: make package root importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

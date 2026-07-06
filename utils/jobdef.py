@@ -31,8 +31,6 @@ from utils.job_common import Mu2eName, default_owner
 # Constants matching Perl mu2ejobdef exactly
 FILENAME_JSON = 'jobpars.json'
 FILENAME_FCL = 'mu2e.fcl'
-FILENAME_TARBALL = 'code.tar'
-FILENAME_TARSETUP = 'Code/setup.sh'
 
 
 def resolve_fhicl_file(templatespec: str) -> str:
@@ -137,7 +135,7 @@ def _seed_needed(template_path: str) -> bool:
         service_list = svclist.split('\n')
         # Return count of exact matches (like Perl's 0 + grep)
         return sum(1 for service in service_list if service == ssname)
-    except:
+    except Exception:
         # If fhicl-get fails, return 0 (like Perl's 2>/dev/null behavior)
         return 0
 
@@ -218,7 +216,7 @@ def _validate_fcl_template(template_path: str) -> None:
         raise ValueError(f"FCL template missing required physics sections: {missing_keys}")
 
 
-def _build_jobpars_json(config: Dict, tbs: Dict, code: str = "", template_path: str = "") -> Dict:
+def _build_jobpars_json(config: Dict, tbs: Dict, code: str = "") -> Dict:
     """Construct complete jobpars.json structure matching Perl mu2ejobdef exactly."""
     owner = config.get('owner') or default_owner()
     desc = get_tarball_desc(config) or config['desc']
@@ -226,7 +224,8 @@ def _build_jobpars_json(config: Dict, tbs: Dict, code: str = "", template_path: 
     
     # Build proper jobname like Perl version (cnf.owner.desc.dsconf.VERSION.tar)
     version = config.get('version', 0)
-    jobname = f"cnf.{owner}.{desc}.{dsconf}.{version}.tar"
+    jobname = str(Mu2eName.build(tier='cnf', owner=owner, description=desc,
+                                 dsconf=dsconf, sequencer=str(version), extension='tar'))
 
     # Reorder TBS fields to match Perl exactly: seed, subrunkey, event_id, outfiles
     ordered_tbs = {}
@@ -407,26 +406,20 @@ def _parse_job_args(job_args: List[str], template_path: str, config: Dict = None
         'fcl_template': None
     }
     
-    def parse_auxinput(spec: str) -> Tuple[str, int, List[str]]:
-        """Parse auxinput specification: count:key:filelist"""
+    def parse_counted_filelist(spec: str) -> Tuple[str, int, List[str]]:
+        """Parse count:key:filelist (auxinput) / count:dsname:filelist
+        (samplinginput) — same grammar for both."""
         n_str, key, filelist = spec.split(':', 2)
         all_files = _read_filelist(filelist)
         nreq = len(all_files) if n_str == 'all' else int(n_str)
         return key, nreq, all_files
     
-    def parse_samplinginput(spec: str) -> Tuple[str, int, List[str]]:
-        """Parse samplinginput specification: count:dsname:filelist"""
-        n_str, dsname, filelist = spec.split(':', 2)
-        all_files = _read_filelist(filelist)
-        nreq = len(all_files) if n_str == 'all' else int(n_str)
-        return dsname, nreq, all_files
-    
     # Argument parsing dispatch table
     arg_handlers = {
         '--inputs': lambda: _read_filelist(next(it)),
         '--merge-factor': lambda: int(next(it)),
-        '--auxinput': lambda: parse_auxinput(next(it)),
-        '--samplinginput': lambda: parse_samplinginput(next(it)),
+        '--auxinput': lambda: parse_counted_filelist(next(it)),
+        '--samplinginput': lambda: parse_counted_filelist(next(it)),
         '--run-number': lambda: int(next(it)),
         '--events-per-job': lambda: int(next(it)),
         '--override-output-description': lambda: True,
@@ -754,13 +747,15 @@ def create_jobdef(config: Dict, fcl_path: str = 'template.fcl', job_args: List[s
     final_desc = get_tarball_desc(config) or desc
     version = config.get('version', 0)
     final_outdir = Path(outdir) if outdir else None
-    out = final_outdir / f"cnf.{owner}.{final_desc}.{dsconf}.{version}.tar" if final_outdir else Path(f"cnf.{owner}.{final_desc}.{dsconf}.{version}.tar")
+    out_name = str(Mu2eName.build(tier='cnf', owner=owner, description=final_desc,
+                                  dsconf=dsconf, sequencer=str(version), extension='tar'))
+    out = final_outdir / out_name if final_outdir else Path(out_name)
 
     if out.exists():
         out.unlink()
 
     # Build complete jobpars JSON
-    jobpars = _build_jobpars_json(config, tbs, code="", template_path=template_path)
+    jobpars = _build_jobpars_json(config, tbs, code="")
 
     # Prepare temporary files
     temp_files = {}

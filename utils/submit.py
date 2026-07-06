@@ -158,29 +158,21 @@ def _bundle_prodtools(out_path=DEFAULT_PRODTOOLS_TAR):
     return out
 
 
-def _read_input_datasets(tarball_path):
-    """Pull the input dataset list from a cnf tarball (used to populate
-    inspec). Imported lazily because Mu2eJobPars pulls in samweb_client
-    via utils/__init__.py, which is fine at runtime but slow to import."""
+def _read_cnf_facts(tarball_path):
+    """One Mu2eJobPars parse per cnf, returning the three facts the direct
+    backend needs: (njobs, input_datasets, output_filenames_index0).
+
+    - njobs is authoritative from the cnf, not the POMS-map (the map field
+      can be stale or absent for direct-input mode).
+    - output filenames (index 0) feed the per-(area, tier, owner) token
+      scope derivation; templates that resolved to a path (`/dev/null`)
+      are skipped.
+    """
     from utils.jobquery import Mu2eJobPars
-    return Mu2eJobPars(str(tarball_path)).input_datasets()
-
-
-def _read_njobs(tarball_path):
-    """Authoritative job count — read from the cnf, not the POMS-map.
-    The POMS-map field can be stale or absent for direct-input mode."""
-    from utils.jobquery import Mu2eJobPars
-    return Mu2eJobPars(str(tarball_path)).njobs()
-
-
-def _read_output_filenames(tarball_path):
-    """Per-job output basenames for index 0 (e.g.
-    `sim.oksuzian.EleBeamCat.test01.001430_00000000.art`). Used by the
-    direct backend to derive the correct token scopes per (area, tier,
-    owner). Skips templates that resolved to a path (`/dev/null`)."""
-    from utils.jobquery import Mu2eJobPars
-    out = Mu2eJobPars(str(tarball_path)).job_outputs(0) or {}
-    return [v for v in out.values() if v and "/" not in v]
+    jp = Mu2eJobPars(str(tarball_path))
+    out = jp.job_outputs(0) or {}
+    return (jp.njobs(), jp.input_datasets(),
+            [v for v in out.values() if v and "/" not in v])
 
 
 def _compute_jobset(opts, njobs_total):
@@ -230,9 +222,7 @@ def submit_entry_direct(entry, idx, opts):
         input_datasets = []
         output_filenames = []
     else:
-        njobs_total = _read_njobs(tarball_path)
-        input_datasets = _read_input_datasets(tarball_path)
-        output_filenames = _read_output_filenames(tarball_path)
+        njobs_total, input_datasets, output_filenames = _read_cnf_facts(tarball_path)
 
     jobset = _compute_jobset(opts, njobs_total)
 

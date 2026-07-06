@@ -12,7 +12,6 @@ Pure functions only — no I/O, no subprocess. Use submit.py's direct
 backend to actually invoke jobsub_submit with the resulting argv.
 """
 
-import json
 import os
 import re
 import sys

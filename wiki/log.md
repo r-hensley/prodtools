@@ -439,3 +439,25 @@ Reason: 4 entries appended to data/Run1B/primary_muon.json (after Run1Bai-001 bl
 ## [2026-06-15] ingest | Run1Ban STM resampler entries added
 Pages written: 2026-06-15-run1ban-stm-resampler-port
 Pages updated: run1ban-campaign, index
+
+## [2026-06-28] update | run1ban-campaign downstream (mixing/reco/evnt)
+Pages updated: run1ban-campaign
+Note: pushed generic evnt cnf cnf.mu2e.evnt.Run1Ban_best_v1_4-000.0.tar + jobdesc Run1Ban-evnt.json; documented Mix1BB conditions + -KL reco/evnt generic chain.
+
+## [2026-07-02] decision | jobdef arithmetic consolidation + tbs.njobs self-description
+Pages written: 2026-07-02-jobdef-arithmetic-and-tbs-njobs
+Pages updated: index
+Note: hoisted sequencer/job_outputs/job_event_settings/job_seed/njobs into Mu2eJobBase (jobfcl semantics canonical); deleted utils/jobiodetail.py; json2jobdef now embeds tbs.njobs (declared-or-derived, absent for generic/legacy = open-ended); compare_tarballs.sh dels tbs.njobs; 292 unit tests green incl. 16 new regressions; smoke-verified NoPrimary/Run1Bai build round-trip.
+
+## [2026-07-03] plan | file-location resolver + SAM query module (approved, not started)
+Pages written: 2026-07-03-file-resolver-and-sam-query-plan
+Pages updated: index
+Note: user approved review candidates #1+#3 ("Do 1 and 2"); plan documented with current code anchors, proposed shape, open grilling questions, bug-for-bug worker-path acceptance criteria, and the leftover quick wins (chain_emit Mu2eName, owner-default copies, _compute_jobset relaxation, source-type unification).
+
+## [2026-07-03] update | Run1Ban NoPrimaryMix1BB reprocessing at v1_5, pushed to production
+Pages updated: run1ban-campaign
+Note: new dsconf Run1Ban_best_v1_5-000 (DB v1_5 native run-1470 coverage, CaloDtsClusterFilter enabled ~10x smaller/4x faster output, merge-factor-10 job packaging validated end-to-end); fixed mixing_utils.py bool-override serializer bug found along the way; pushed 2000 jobs to MDC2025-032 (34599 total).
+
+## [2026-07-06] update | File resolver + SAM query module refactor implemented
+Pages updated: 2026-07-03-file-resolver-and-sam-query-plan
+Note: samweb_wrapper deepened (q_* builders + fail-loud named queries, absorbed jobfcl raw client + latestDatasets CLI); new utils/file_resolver.py owns all dCache/CVMFS path grammar (stash/resilient/dataset_dir/storage_scope) with FileResolver(inloc,proto) reproducing jobfcl bug-for-bug; jobfcl/stash_utils/datasetFileList/jobsub_argv delegate. Verified: 8/8 fcl outputs byte-identical on real cnfs across all inloc/proto combos; 292 unit tests at baseline pass state.

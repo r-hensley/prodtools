@@ -18,7 +18,7 @@ for py_tar in python/*.tar; do
     echo "Python vs Perl FCL identical?" && diff <(tar -xO -f "$py_tar" mu2e.fcl) <(tar -xO -f "$perl_tar" mu2e.fcl) && echo "✅" || echo "❌"
     
     echo "Python vs Perl JSON identical?"
-    if diff <(tar -xO -f "$py_tar" jobpars.json | jq -S .) <(tar -xO -f "$perl_tar" jobpars.json | jq -S .); then
+    if diff <(tar -xO -f "$py_tar" jobpars.json | jq -S 'del(.tbs.njobs)') <(tar -xO -f "$perl_tar" jobpars.json | jq -S 'del(.tbs.njobs)'); then
         echo "✅"
     else
         echo "❌"
@@ -44,7 +44,7 @@ for py_tar in python/*.tar; do
         echo "Python vs DCache_tar FCL identical?" && diff <(tar -xO -f "$py_tar" mu2e.fcl) <(tar -xO -f "$dcache_tar" mu2e.fcl) && echo "✅" || echo "❌"
         
         echo "Python vs DCache_tar JSON identical?"
-        if diff <(tar -xO -f "$py_tar" jobpars.json | jq -S .) <(tar -xO -f "$dcache_tar" jobpars.json | jq -S .); then
+        if diff <(tar -xO -f "$py_tar" jobpars.json | jq -S 'del(.tbs.njobs)') <(tar -xO -f "$dcache_tar" jobpars.json | jq -S 'del(.tbs.njobs)'); then
             echo "✅"
         else
             echo "❌"

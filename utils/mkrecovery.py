@@ -3,14 +3,20 @@
 import sys, os, json, argparse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.jobiodetail import Mu2eJobIO
-from utils.samweb_wrapper import SAMWebWrapper, list_files, create_definition
+from utils.jobquery import Mu2eJobPars
+from utils.samweb_wrapper import (
+    SAMWebWrapper,
+    create_definition,
+    dataset_file_count,
+    files_in_dataset,
+    q_dataset_files_named,
+)
 from utils.job_common import Mu2eName, remove_storage_prefix
 from utils.poms_entry import tarball_of, njobs_of
 
 def find_missing_indices(tarball_path, dataset, njobs):
     """Find job indices for missing files in a dataset."""
-    job_io = Mu2eJobIO(tarball_path)
+    job_io = Mu2eJobPars(tarball_path)
     dataset_base = dataset.replace('.art', '')
     
     # Build mapping from filename to job index
@@ -21,7 +27,7 @@ def find_missing_indices(tarball_path, dataset, njobs):
                 file_to_job[filename] = job_idx
     
     expected_files = set(file_to_job.keys())
-    actual_files = set(list_files(f"dh.dataset {dataset}"))
+    actual_files = set(files_in_dataset(dataset))
     missing_files = expected_files - actual_files
     
     if not missing_files:
@@ -36,7 +42,7 @@ def create_recovery_definition(defname, indices):
     success; on failure prints the error and returns False (does not
     re-raise — caller can decide whether to abort the recovery flow)."""
     etc_files = [f"etc.mu2e.index.000.{idx:07d}.txt" for idx in sorted(indices)]
-    query = f"dh.dataset etc.mu2e.index.000.txt and file_name in ({', '.join(etc_files)})"
+    query = q_dataset_files_named("etc.mu2e.index.000.txt", etc_files)
     try:
         create_definition(defname, query)
     except Exception as e:
@@ -54,17 +60,14 @@ def locate_tarball(sam, tarball):
 
 def extract_datasets_from_tarball(tarball_path, njobs):
     """Extract output dataset names from job definition tarball."""
-    from utils.jobquery import Mu2eJobPars
-    
     job_pars = Mu2eJobPars(tarball_path)
     output_datasets = job_pars.output_datasets()
     
     # If output_datasets is empty, extract from actual output files
     if not output_datasets:
-        job_io = Mu2eJobIO(tarball_path)
         dataset_set = set()
         for idx in range(min(10, njobs)):
-            for filename in job_io.job_outputs(idx).values():
+            for filename in job_pars.job_outputs(idx).values():
                 # Extract dataset name from filename (force .art extension to
                 # match historical behavior — outputs may have other exts).
                 try:
@@ -86,8 +89,6 @@ def main():
     
     if args.jobdesc:
         # Process jobdesc JSON file
-        from utils.samweb_wrapper import count_files
-        
         with open(args.input) as f:
             entries = json.load(f)
         
@@ -127,7 +128,7 @@ def main():
             # Process each dataset
             for dataset_name in output_datasets:
                 try:
-                    nfiles = count_files(f"dh.dataset {dataset_name}")
+                    nfiles = dataset_file_count(dataset_name)
                 except Exception as e:
                     print(f'    {dataset_name}: Could not query SAM ({e})')
                     nfiles = 0

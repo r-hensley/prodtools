@@ -1,0 +1,215 @@
+[
+    {
+        "desc": "NeutralsFlash",
+        "dsconf": "MDC2025ac",
+        "fcl": "Production/JobConfig/pileup/NeutralsResampler.fcl",
+        "fcl_overrides": {
+            "services.GeometryService.inputFile": "Offline/Mu2eG4/geom/geom_run1_a.txt"
+        },
+        "resampler_name": "neutralsResampler",
+        "input_data": {"sim.mu2e.NeutralsCat.MDC2025ab.art": 1},
+        "njobs": 40000,
+        "events": 1340000,
+        "run": 1430,
+        "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ac/setup.sh",
+        "owner": "mu2e",
+        "inloc": "tape",
+        "outloc": {
+            "*.art": "disk"
+        },
+        "sequential_aux": true
+    },
+    {
+        "desc": "NeutralsFlash-test",
+        "dsconf": "MDC2025ac",
+        "fcl": "Production/JobConfig/pileup/NeutralsResampler.fcl",
+        "fcl_overrides": {
+            "services.GeometryService.inputFile": "Offline/Mu2eG4/geom/geom_run1_a.txt",
+            "outputs.EarlyFlashOutput.fileProperties.granularity": "SubRun",
+            "outputs.FlashOutput.fileProperties.granularity": "SubRun",
+            "outputs.EarlyFlashOutput.fileName": "dts.mu2e.EarlyNeutralsFlash.MDC2025ac.001430_00000052.art%#",
+            "outputs.FlashOutput.fileName": "dts.mu2e.NeutralsFlash.MDC2025ac.001430_00000052.art%#"
+        },
+        "resampler_name": "neutralsResampler",
+        "input_data": {"sim.mu2e.NeutralsCat.MDC2025ab.art": 1},
+        "njobs": 40000,
+        "events": 1340000,
+        "run": 1430,
+        "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ac/setup.sh",
+        "owner": "mu2e",
+        "inloc": "tape",
+        "outloc": {
+            "*.art": "disk"
+        },
+        "sequential_aux": true
+    },
+    {
+        "desc": "MuBeamFlash",
+        "dsconf": "MDC2025ac",
+        "fcl": "Production/JobConfig/pileup/MuBeamResampler.fcl",
+        "fcl_overrides": {
+            "services.GeometryService.inputFile": "Offline/Mu2eG4/geom/geom_run1_a.txt"
+        },
+        "resampler_name": "beamResampler",
+        "input_data": {"sim.mu2e.MuBeamCat.MDC2025ab.art": 1},
+        "njobs": 10000,
+        "events": 400000,
+        "run": 1430,
+        "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ac/setup.sh",
+        "owner": "mu2e",
+        "inloc": "tape",
+        "outloc": {
+            "*.art": "disk"
+        },
+        "sequential_aux": true
+    },
+    {
+        "desc": "EleBeamFlash",
+        "dsconf": "MDC2025ac",
+        "fcl": "Production/JobConfig/pileup/EleBeamResampler.fcl",
+        "fcl_overrides": {
+            "services.GeometryService.inputFile": "Offline/Mu2eG4/geom/geom_run1_a.txt"
+        },
+        "resampler_name": "beamResampler",
+        "input_data": {"sim.mu2e.EleBeamCat.MDC2025ab.art": 1},
+        "njobs": 20000,
+        "events": 1000000,
+        "run": 1430,
+        "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ac/setup.sh",
+        "owner": "mu2e",
+        "inloc": "tape",
+        "outloc": {
+            "*.art": "disk"
+        },
+        "sequential_aux": true
+    },
+    {
+        "desc": "MuStopPileup",
+        "dsconf": "MDC2025ac",
+        "fcl": "Production/JobConfig/pileup/MuStopPileup.fcl",
+        "fcl_overrides": {
+            "services.GeometryService.inputFile": "Offline/Mu2eG4/geom/geom_run1_a.txt"
+        },
+        "resampler_name": "TargetStopResampler",
+        "input_data": {"sim.mu2e.MuminusStopsCat.MDC2025ac.art": 1},
+        "njobs": 5000,
+        "events": 400000,
+        "run": 1430,
+        "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ac/setup.sh",
+        "owner": "mu2e",
+        "inloc": "tape",
+        "outloc": {
+            "*.art": "disk"
+        },
+        "sequential_aux": true
+    },
+    {
+        "desc": "PiTargetStops",
+        "dsconf": "MDC2025ac",
+        "fcl": "Production/JobConfig/pileup/PiBeamResampler.fcl",
+        "resampler_name": "beamResampler",
+        "input_data": {"sim.mu2e.PiBeamCat.MDC2025ac.art": 1},
+        "inloc": "tape",
+        "outloc": {
+            "*.art": "tape"
+        },
+        "njobs": 500,
+        "events": 160000,
+        "run": 1430,
+        "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ac/setup.sh",
+        "owner": "mu2e",
+        "sequential_aux": true
+    },
+    {
+        "desc": "PiMinusFilter",
+        "dsconf": "MDC2025ac",
+        "fcl_overrides": {
+            "physics.filters.PionFilter.simParticles": "TargetPiStopFilter",
+            "services.TFileService.fileName": "/dev/null"
+        },
+        "fcl": "Production/JobConfig/primary/TargetPiStopPreFilter.fcl",
+        "input_data": {"sim.mu2e.PiTargetStops.MDC2025ac.art": 10},
+        "inloc": "tape",
+        "outloc": {
+            "*.art": "tape"
+        },
+        "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ac/setup.sh"
+    },
+    {
+        "desc": "RPCInternalPhysical",
+        "dsconf": "MDC2025af",
+        "fcl": "Production/JobConfig/primary/RPCInternalPhysical.fcl",
+        "input_data": {"sim.mu2e.PhysicalPionStops.MDC2025ac.art": 1},
+        "resampler_name": "TargetPiStopResampler",
+        "njobs": 5000,
+        "events": 25000,
+        "run": 1430,
+        "inloc": "disk",
+        "outloc": {
+            "*.art": "disk"
+        },
+        "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025af/setup.sh",
+        "owner": "mu2e",
+        "sequential_aux": true
+    },
+    {
+        "desc": "RPCExternalPhysical",
+        "dsconf": "MDC2025af",
+        "fcl": "Production/JobConfig/primary/RPCExternalPhysical.fcl",
+        "resampler_name": "TargetPiStopResampler",
+        "input_data": {"sim.mu2e.PhysicalPionStops.MDC2025ac.art": 1},
+        "njobs": 5000,
+        "events": 1000000,
+        "run": 1430,
+        "inloc": "disk",
+        "outloc": {
+            "*.art": "disk"
+        },
+        "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025af/setup.sh",
+        "owner": "mu2e",
+        "sequential_aux": true
+    },
+    {
+        "desc": "RPCPhysicalStops",
+        "dsconf": "MDC2025ac",
+        "fcl": "Production/JobConfig/beam/PhysicalPionStops.fcl",
+        "fcl_overrides": {
+            "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_no_tsu_ps_v01.txt"
+        },
+        "resampler_name": "StopResampler",
+        "input_data": {"sim.mu2e.PiTargetStops.MDC2025ac.art": 10},
+        "njobs": 2000,
+        "events": 5000000,
+        "run": 1430,
+        "inloc": "tape",
+        "outloc": {
+            "*.art": "disk"
+        },
+        "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ac/setup.sh",
+        "owner": "mu2e",
+        "sequential_aux": true
+    },
+    {
+        "desc": "NeutralsFlashCat",
+        "dsconf": "MDC2025ad",
+        "sequencer_from_index": true,
+        "fcl": "Production/JobConfig/common/artcat.fcl",
+        "input_data": {
+            "dts.mu2e.NeutralsFlash.MDC2025ac.art": {
+                "count": 5000,
+                "random": true
+            }
+        },
+        "njobs": 1000,
+        "inloc": "disk",
+		"fcl_overrides": {
+			"outputs.out.fileName": "dts.owner.NeutralsFlashCat.version.sequence.art"
+		},
+        "outloc": {
+            "*.art": "tape"
+        },
+        "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ad/setup.sh",
+        "owner": "mu2e"
+    }
+
+]

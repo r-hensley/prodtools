@@ -257,6 +257,43 @@ def _read_filelist(path: str) -> List[str]:
         return [line.strip() for line in f if line.strip()]
 
 
+def _resolve_njobs(config: Dict, tbs: Dict) -> Optional[int]:
+    """Job count to embed as tbs.njobs (tarball self-description).
+
+    The declared config value wins after validation against the capacity
+    derived from the frozen input lists; -1 or absent means "use derived".
+    Returns None when the count is unknowable (generator without a declared
+    njobs, generic tarball) — the key is then omitted and readers treat the
+    jobdef as open-ended (job count is a submit-time decision, authoritative
+    in the POMS map).
+    """
+    if config.get('generic_tarball'):
+        return None
+
+    capacity = None
+    inputs = tbs.get('inputs')
+    samplinginput = tbs.get('samplinginput')
+    if inputs:
+        for _dataset, (merge, filelist) in inputs.items():
+            capacity = (len(filelist) + merge - 1) // merge
+            break
+    elif samplinginput:
+        for _dataset, (nreq, filelist) in samplinginput.items():
+            capacity = 1 if nreq == 0 else (len(filelist) + nreq - 1) // nreq
+            break
+
+    declared = config.get('njobs')
+    if declared is None or declared == -1:
+        return capacity
+    declared = int(declared)
+    if capacity is not None and declared > capacity:
+        raise ValueError(
+            f"njobs={declared} exceeds the {capacity} jobs supported by the "
+            f"input file list; indices past {capacity - 1} would fail at runtime "
+            f"with job_primary_inputs(): invalid index")
+    return declared
+
+
 def _validate_options_for_source_type(source_type: str, args_state: Dict) -> None:
     """Validate options for source type (matching Perl's validateOptionsForSourceType exactly).
     
@@ -704,6 +741,13 @@ def create_jobdef(config: Dict, fcl_path: str = 'template.fcl', job_args: List[s
 
     # Parse job arguments and build TBS with template analysis using the resolved template path (like Perl's $templateresolved)
     tbs, override_output_description = _parse_job_args(all_args, template_path, config)
+
+    # Embed the resolved job count so the tarball is self-descriptive.
+    # Absent tbs.njobs = open-ended (generic tarball, or generator with no
+    # declared count); readers then fall back to the POMS map.
+    embedded_njobs = _resolve_njobs(config, tbs)
+    if embedded_njobs is not None:
+        tbs['njobs'] = embedded_njobs
     
     # Use provided outdir (simple logic matching Perl version)
     # Use tarball_append if specified, otherwise use original desc

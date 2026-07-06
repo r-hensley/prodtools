@@ -16,9 +16,17 @@ from typing import Optional
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.poms_db import get_db_session, Job, JobOutput, DatasetInfo
-from utils.samweb_wrapper import count_files, locate_file, locate_file_full, list_files, list_definition_files, describe_definition, get_metadata
+from utils.samweb_wrapper import (
+    locate_file,
+    locate_file_full,
+    list_definition_files,
+    describe_definition,
+    get_metadata,
+    dataset_summary,
+    definition_file_count,
+    children_of_file,
+)
 from utils.job_common import Mu2eName
-from utils.jobiodetail import Mu2eJobIO
 from utils.jobquery import Mu2eJobPars
 from utils.logparser import process_dataset as parse_logs_for_dataset
 import re
@@ -44,7 +52,7 @@ def _extract_file_path(location):
 def _get_dataset_stats(dataset_name):
     """Get dataset statistics from SAM."""
     try:
-        result = list_files(f"dh.dataset={dataset_name}", summary=True)
+        result = dataset_summary(dataset_name)
         if isinstance(result, dict):
             return (
                 int(result.get('file_count', 0) or 0),
@@ -97,7 +105,7 @@ def _check_dataset_has_children(dataset_name):
         first_file = files[0]
         
         # Check if any files are children of the first file
-        children = list_files(f'ischildof: (file_name {first_file})')
+        children = children_of_file(first_file)
         return len(children) > 0
     except Exception as e:
         print(f"Warning: _check_dataset_has_children failed for {dataset_name}: {e}", file=sys.stderr)
@@ -265,7 +273,7 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
             # Resolve template-mode njobs via defname when missing
             if job.fcl_template and job.indef and not job.njobs:
                 try:
-                    njobs = count_files(f"defname: {job.indef}")
+                    njobs = definition_file_count(job.indef)
                     if njobs > 0:
                         job.njobs = njobs
                         print(f"  Template mode: {job.indef} -> {njobs} files")
@@ -322,7 +330,7 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
             if not os.path.exists(full_path):
                 continue
 
-            outputs = Mu2eJobIO(full_path).job_outputs(0)
+            outputs = Mu2eJobPars(full_path).job_outputs(0)
             if not outputs:
                 continue
 

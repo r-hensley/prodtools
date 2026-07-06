@@ -32,33 +32,25 @@ from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.job_common import Mu2eName, remove_storage_prefix
-from utils.samweb_wrapper import list_files, locate_file_full
+from utils.job_common import remove_storage_prefix
+from utils.samweb_wrapper import files_in_dataset, locate_file_full
+from utils import file_resolver
 
 
 # ---------------------------------------------------------------------------
-# Root path helpers
+# Root path helpers / path builders — grammar lives in file_resolver;
+# these names are kept as thin delegates for existing callers.
 # ---------------------------------------------------------------------------
 
 def stash_read_root() -> str:
     """Return the StashCache CVMFS read root (used by grid jobs in FCL)."""
-    return os.environ.get(
-        "MU2E_STASH_READ",
-        "/cvmfs/mu2e.osgstorage.org/pnfs/fnal.gov/usr/mu2e/persistent/stash"
-    )
+    return file_resolver.stash_read_root()
 
 
 def stash_write_root() -> str:
     """Return the StashCache dCache write root (used when copying files in)."""
-    return os.environ.get(
-        "MU2E_STASH_WRITE",
-        "/pnfs/mu2e/persistent/stash"
-    )
+    return file_resolver.stash_write_root()
 
-
-# ---------------------------------------------------------------------------
-# Path builders
-# ---------------------------------------------------------------------------
 
 def _subpath(filename: str) -> str:
     """
@@ -66,18 +58,17 @@ def _subpath(filename: str) -> str:
 
     Format: datasets/<tier>/<owner>/<description>/<dsconf>/<ext>/<filename>
     """
-    ds_path = str(Mu2eName.parse(filename).dataset).replace('.', '/')
-    return f"datasets/{ds_path}/{filename}"
+    return file_resolver.dataset_subpath(filename)
 
 
 def read_path_for_file(filename: str) -> str:
     """Return the full CVMFS read path for a file (used in FCL on the grid)."""
-    return f"{stash_read_root()}/{_subpath(filename)}"
+    return file_resolver.stash_read_path(filename)
 
 
 def write_path_for_file(filename: str) -> str:
     """Return the full dCache write path for a file (copy destination)."""
-    return f"{stash_write_root()}/{_subpath(filename)}"
+    return file_resolver.stash_write_path(filename)
 
 
 def list_expected_paths(dataset: str) -> List[str]:
@@ -87,7 +78,7 @@ def list_expected_paths(dataset: str) -> List[str]:
     This is useful for verifying that all files have been copied before
     submitting jobs with inloc='stash'.
     """
-    files = list_files(f"dh.dataset {dataset}")
+    files = files_in_dataset(dataset)
     return sorted(read_path_for_file(f) for f in files)
 
 
@@ -122,7 +113,7 @@ def copy_dataset_to_stash(
     -------
     Number of files successfully copied.
     """
-    files = list_files(f"dh.dataset {dataset}")
+    files = files_in_dataset(dataset)
     if not files:
         raise ValueError(f"No files found in SAM for dataset: {dataset}")
 
@@ -186,17 +177,17 @@ def copy_dataset_to_stash(
 
 def resilient_root() -> str:
     """Return the resilient dCache root path (write and direct-read on interactive nodes)."""
-    return os.environ.get("MU2E_RESILIENT", "/pnfs/mu2e/resilient")
+    return file_resolver.resilient_root()
 
 
 def resilient_path_for_file(filename: str) -> str:
     """Return the full /pnfs/ path for a file in resilient storage."""
-    return f"{resilient_root()}/{_subpath(filename)}"
+    return file_resolver.resilient_path(filename)
 
 
 def list_resilient_paths(dataset: str) -> List[str]:
     """Return the expected resilient /pnfs/ paths for all files in a SAM dataset."""
-    files = list_files(f"dh.dataset {dataset}")
+    files = files_in_dataset(dataset)
     return sorted(resilient_path_for_file(f) for f in files)
 
 
@@ -222,7 +213,7 @@ def copy_dataset_to_resilient(
     -------
     Number of files successfully copied.
     """
-    files = list_files(f"dh.dataset {dataset}")
+    files = files_in_dataset(dataset)
     if not files:
         raise ValueError(f"No files found in SAM for dataset: {dataset}")
 

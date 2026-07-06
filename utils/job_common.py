@@ -7,10 +7,11 @@ across multiple files to reduce code redundancy and ensure consistency.
 """
 
 import json
+import os
 import re
 import tarfile
 import hashlib
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 
 # Mu2e dataset path puts every tier under one of four umbrella owner-classes.
@@ -243,6 +244,13 @@ class Mu2eJobBase:
         """Initialize with path to job definition tarball; extract jobpars.json."""
         self.jobdef = jobdef_path
         self.json_data = self._extract_json()
+        # owner/dsconf feed the `.owner.`/`.version.` placeholder substitution
+        # in job_outputs(). jobpars.json built by mu2ejobdef has no top-level
+        # owner/dsconf keys, so these normally resolve to the environment
+        # defaults — same behavior Mu2eJobFCL always had.
+        default_owner = os.getenv('USER', 'mu2e').replace('mu2epro', 'mu2e')
+        self.owner = self.json_data.get('owner', default_owner)
+        self.dsconf = self.json_data.get('dsconf', 'unknown')
 
     def _extract_member(self, suffix: str) -> bytes:
         """Return the bytes of the first tar member whose name ends with ``suffix``.
@@ -259,14 +267,14 @@ class Mu2eJobBase:
     def _extract_json(self) -> dict:
         """Extract jobpars.json from the tarball.
 
-        Consolidated implementation from jobfcl.py, jobiodetail.py, and jobquery.py.
+        Consolidated implementation from the former per-class copies.
         """
         return json.loads(self._extract_member('jobpars.json'))
     
     def _my_random(self, *args) -> int:
         """Generate deterministic random number from inputs.
 
-        Consolidated implementation from jobfcl.py and jobiodetail.py.
+        Consolidated implementation from the former per-class copies.
         Uses SHA256 hash to create deterministic pseudo-random numbers.
         """
         h = hashlib.sha256()
@@ -374,6 +382,181 @@ class Mu2eJobBase:
         result.update(self.job_aux_inputs(index))
         result.update(self.job_sampling_inputs(index))
         return result
+
+    # ------------------------------------------------------------------
+    # Per-index job arithmetic. These are THE single implementation —
+    # the worker names its actual output files through them (via
+    # Mu2eJobFCL.generate_fcl), so every other consumer (mkrecovery,
+    # submit, db_builder, jobdef_lookup) must get identical answers.
+    # Formerly duplicated (divergently) in the deleted jobiodetail.py and in jobquery.py.
+    # ------------------------------------------------------------------
+
+    def sequencer(self, index: int) -> str:
+        """Get sequencer for job index.
+
+        Precedence: an explicit run number in tbs.event_id wins (the job
+        family is run/index-addressed, e.g. mix and generator jobs);
+        otherwise the sequencer comes from the primary input files.
+        Different source types use different FCL parameter names for the
+        run number:
+          EmptyEvent / RootInput → source.firstRun
+          SamplingInput          → source.run
+          PBISequence            → source.runNumber
+        """
+        tbs = self.json_data.get('tbs', {})
+
+        event_id = tbs.get('event_id', {})
+        run = (event_id.get('source.firstRun')
+               or event_id.get('source.run')
+               or event_id.get('source.runNumber'))
+        if run:
+            return f"{run:06d}_{index:08d}"
+
+        # Get sequencers from primary input files
+        primary_inputs = self.job_primary_inputs(index)
+        if not primary_inputs:
+            raise ValueError("Error: get_sequencer(): unsupported JSON content")
+
+        sequencers = []
+        for dataset, files in primary_inputs.items():
+            for filename in files:
+                sequencers.append(Mu2eName.parse(filename).sequencer)
+
+        if not sequencers:
+            raise ValueError("Error: get_sequencer(): no sequencers found in input files")
+
+        # Sort and get first sequencer
+        sequencers.sort()
+        parent_sequencer = sequencers[0]
+
+        # If sequencer_from_index is enabled, extract run number and use index as subrun
+        if tbs.get('sequencer_from_index', False) and '_' in parent_sequencer:
+            parent_run = parent_sequencer.split('_')[0]
+            return f"{parent_run}_{index:08d}"
+
+        # Otherwise, use the sequencer from input files directly
+        return parent_sequencer
+
+    def job_outputs(self, index: int,
+                    override_desc: str = None,
+                    override_seq: str = None) -> Dict[str, str]:
+        """Get output files for job index.
+
+        override_desc: if provided, substitute {desc} in outfile patterns.
+                       Used in direct-input mode where desc comes from fname.
+        override_seq:  if provided, use this sequencer instead of computing
+                       from input files. Used in direct-input mode.
+        """
+        tbs = self.json_data.get('tbs', {})
+        outfiles = tbs.get('outfiles')
+
+        if not outfiles:
+            return {}
+
+        result = {}
+        seq = override_seq if override_seq is not None else self.sequencer(index)
+
+        for key, template in outfiles.items():
+            # The template may still contain placeholders that need to be resolved
+            # Replace placeholders with actual values
+            resolved_template = template
+            resolved_template = resolved_template.replace('.owner.', f'.{self.owner}.')
+            resolved_template = resolved_template.replace('.version.', f'.{self.dsconf}.')
+            resolved_template = resolved_template.replace('.sequencer.', f'.{seq}.')
+            # Also handle {sequencer} format (Python-style placeholder)
+            resolved_template = resolved_template.replace('{sequencer}', seq)
+            # Substitute {desc} from fname at runtime (direct-input / generic tarball mode)
+            if override_desc is not None:
+                resolved_template = resolved_template.replace('{desc}', override_desc)
+
+            # Skip filenames that don't follow Mu2e naming convention (e.g., /dev/null, relative paths)
+            if not resolved_template.startswith(('dts.', 'dig.', 'sim.', 'rec.', 'nts.', 'cnf.', 'mcs.')):
+                result[key] = resolved_template
+                continue
+
+            # Update sequencer in the filename (parse then re-emit with new seq)
+            result[key] = str(Mu2eName.parse(resolved_template).with_sequencer(seq))
+
+        return result
+
+    def job_event_settings(self, index: int) -> Dict[str, Union[int, str]]:
+        """Get event settings for job index."""
+        tbs = self.json_data.get('tbs', {})
+        event_id = tbs.get('event_id')
+        per_index = tbs.get('event_id_per_index', {})
+
+        if not event_id and not per_index:
+            return {}
+
+        result = {}
+        if event_id:
+            for key, value in event_id.items():
+                result[key] = value
+
+        subrunkey = tbs.get('subrunkey')
+        if subrunkey is not None:
+            if subrunkey != '':
+                result[subrunkey] = index
+        else:
+            # Old format
+            result['source.firstSubRun'] = index
+
+        # Per-index linear overrides: result[key] = offset + index * step.
+        # Applied last so they override any fixed event_id entry on the same key.
+        for key, spec in per_index.items():
+            offset = int(spec.get('offset', 0))
+            step = int(spec.get('step', 0))
+            result[key] = offset + index * step
+
+        return result
+
+    def job_seed(self, index: int) -> Dict[str, int]:
+        """Get seed settings for job index."""
+        tbs = self.json_data.get('tbs', {})
+        seed_key = tbs.get('seed')
+
+        if not seed_key:
+            return {}
+
+        return {seed_key: 1 + index}
+
+    def njobs(self) -> int:
+        """Get the number of jobs in the set.
+
+        Precedence: tbs.njobs (embedded at build time: the declared or
+        resolved campaign size) → derived from the frozen primary input
+        list → derived from samplinginput → 0.
+
+        0 means "open-ended": a legacy generator tarball built before
+        tbs.njobs existed, or a generic tarball (1 job per input fname).
+        For those the job count is a submit-time decision, authoritative
+        in the POMS map — 0 is deliberately not a guess.
+        """
+        tbs = self.json_data.get('tbs', {})
+
+        if 'njobs' in tbs:
+            return int(tbs['njobs'])
+
+        inputs = tbs.get('inputs')
+        if inputs:
+            for dataset, (merge, filelist) in inputs.items():
+                if not isinstance(merge, int) or merge <= 0:
+                    raise ValueError(
+                        f"njobs(): invalid merge factor {merge!r} for {dataset} in {self.jobdef}")
+                return (len(filelist) + merge - 1) // merge
+
+        samplinginput = tbs.get('samplinginput')
+        if samplinginput:
+            for dataset, (nreq, filelist) in samplinginput.items():
+                if nreq == 0:
+                    # nreq 0 = "all files in one job" (job_sampling_inputs semantics)
+                    return 1
+                if not isinstance(nreq, int) or nreq < 0:
+                    raise ValueError(
+                        f"njobs(): invalid nreq {nreq!r} for {dataset} in {self.jobdef}")
+                return (len(filelist) + nreq - 1) // nreq
+
+        return 0
 
 
 def get_samweb_wrapper():

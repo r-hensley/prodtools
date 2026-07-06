@@ -14,13 +14,13 @@ campaign letter then version.
 
 import argparse
 import os
-import subprocess
 import sys
 from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.job_common import Mu2eName
+from utils.samweb_wrapper import dataset_file_count, definitions_matching
 
 
 _VERBOSE = False
@@ -45,13 +45,7 @@ def parse_name(name):
 
 
 def fetch_definitions(defname_pattern, user):
-    cmd = ["samweb", "list-definitions"]
-    if user:
-        cmd.append(f"--user={user}")
-    if defname_pattern:
-        cmd.append(f"--defname={defname_pattern}")
-    res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return [line.strip() for line in res.stdout.splitlines() if line.strip()]
+    return definitions_matching(defname=defname_pattern, user=user)
 
 
 def latest_per_description(names):
@@ -93,9 +87,7 @@ def _narrow_to_latest_release(names):
 
 def _dataset_file_count(name):
     """Number of files in a SAM dataset (completeness numerator)."""
-    res = subprocess.run(["samweb", "count-files", f"dh.dataset={name}"],
-                         capture_output=True, text=True, check=True)
-    return int(res.stdout.strip())
+    return dataset_file_count(name)
 
 
 def _filter_complete(names):

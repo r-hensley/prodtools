@@ -68,10 +68,10 @@ def _raw_outfile_descs(tarball_path):
     the sequencer. Returns list of (description, tier) parsed from each
     ``tbs.outfiles`` template. Safe on generic tarballs (whose {desc}/sequencer
     are deferred and would make job_outputs() raise)."""
-    from utils.jobiodetail import Mu2eJobIO
+    from utils.jobquery import Mu2eJobPars
     out = []
     try:
-        outfiles = Mu2eJobIO(tarball_path).json_data.get('tbs', {}).get('outfiles', {})
+        outfiles = Mu2eJobPars(tarball_path).json_data.get('tbs', {}).get('outfiles', {})
     except Exception:
         return out
     for template in (outfiles or {}).values():
@@ -110,7 +110,7 @@ def derive_generic_input(tarball_path, target):
     """Map a --target OUTPUT file to its INPUT art file for a generic cnf: strip
     the output-template suffix -> input desc, map tier (mcs->dig) via the chain,
     and find the input file in SAM by desc + sequencer (any dsconf)."""
-    from utils.samweb_wrapper import list_files
+    from utils.samweb_wrapper import files_like
     from utils.chain_emit import input_tier_for_output
     t = Mu2eName.parse(target)
     in_tier = input_tier_for_output(t.tier)
@@ -122,8 +122,8 @@ def derive_generic_input(tarball_path, target):
                 break
     if not input_desc:
         raise ValueError(f"cannot derive input for target '{target}'")
-    matches = list_files(f"dh.dataset like '{in_tier}.mu2e.{input_desc}.%.art' "
-                         f"and dh.sequencer {t.sequencer}")
+    matches = files_like(f"{in_tier}.mu2e.{input_desc}.%.art",
+                         sequencer=t.sequencer)
     if not matches:
         raise ValueError(f"no {in_tier} input for desc '{input_desc}' seq '{t.sequencer}'")
     return matches[0]
@@ -178,7 +178,7 @@ def find_matching_jobdef(jobdefs, desc, input_type=None):
 
 def _search_jobdefs(jobdefs, desc, input_type, name_filter, verbose_match=False):
     """Iterate jobdefs and return the first tarball whose output desc + type matches."""
-    from utils.jobiodetail import Mu2eJobIO
+    from utils.jobquery import Mu2eJobPars
 
     matches = []
     for jobdef in jobdefs:
@@ -197,7 +197,7 @@ def _search_jobdefs(jobdefs, desc, input_type, name_filter, verbose_match=False)
             continue
 
         try:
-            outputs = Mu2eJobIO(tarball_path).job_outputs(0)
+            outputs = Mu2eJobPars(tarball_path).job_outputs(0)
         except Exception as e:
             # Generic tarballs defer {desc}/sequencer -> job_outputs() raises.
             # They are handled by the generic pass; skip here, don't abort.
@@ -272,14 +272,13 @@ def output_njobs_map(dsconf):
     list_jobdefs and re-opens tarballs for every dataset (O(datasets x cnfs)),
     which crawls; this is O(cnfs) and the caller just does dict lookups.
     njobs is 0 for open-ended generator cnfs (indeterminate)."""
-    from utils.jobiodetail import Mu2eJobIO
     from utils.jobquery import Mu2eJobPars
     out = {}
     for jobdef in list_jobdefs(dsconf):
         try:
             tarball = locate_tarball(jobdef)
             njobs = Mu2eJobPars(tarball).njobs()
-            outputs = Mu2eJobIO(tarball).job_outputs(0)
+            outputs = Mu2eJobPars(tarball).job_outputs(0)
         except Exception as e:
             _log(f"Skipping {jobdef}: {e}")
             continue

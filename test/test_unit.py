@@ -524,17 +524,12 @@ class TestLocateFileSAM(unittest.TestCase):
     def tearDown(self):
         os.unlink(self.tar)
 
-    def _make_sam_client(self, locations):
-        mock_client = MagicMock()
-        mock_client.locateFile.return_value = locations
-        return mock_client
-
     def test_tape_location_preferred(self):
         locations = [
             {'location_type': 'disk', 'full_path': '/pnfs/mu2e/persistent/datasets/phy-sim/f.art'},
             {'location_type': 'tape', 'full_path': '/pnfs/mu2e/tape/phy-sim/f.art'},
         ]
-        with patch('samweb_client.SAMWebClient', return_value=self._make_sam_client(locations)):
+        with patch('utils.samweb_wrapper.locate_file_strict', return_value=locations):
             job = self.Cls(self.tar, inloc='tape', proto='file')
             path = job._locate_file("f.art")
         self.assertEqual(path, '/pnfs/mu2e/tape/phy-sim/f.art')
@@ -544,7 +539,7 @@ class TestLocateFileSAM(unittest.TestCase):
             {'location_type': 'disk', 'full_path': '/pnfs/mu2e/persistent/datasets/phy-sim/f.art'},
             {'location_type': 'tape', 'full_path': '/pnfs/mu2e/tape/phy-sim/f.art'},
         ]
-        with patch('samweb_client.SAMWebClient', return_value=self._make_sam_client(locations)):
+        with patch('utils.samweb_wrapper.locate_file_strict', return_value=locations):
             job = self.Cls(self.tar, inloc='disk', proto='file')
             path = job._locate_file("f.art")
         self.assertEqual(path, '/pnfs/mu2e/persistent/datasets/phy-sim/f.art')
@@ -554,21 +549,20 @@ class TestLocateFileSAM(unittest.TestCase):
         locations = [
             {'location_type': 'tape', 'full_path': '/pnfs/mu2e/tape/phy-sim/f.art'},
         ]
-        with patch('samweb_client.SAMWebClient', return_value=self._make_sam_client(locations)):
+        with patch('utils.samweb_wrapper.locate_file_strict', return_value=locations):
             job = self.Cls(self.tar, inloc='disk', proto='file')
             path = job._locate_file("f.art")
         self.assertEqual(path, '/pnfs/mu2e/tape/phy-sim/f.art')
 
     def test_no_locations_raises(self):
-        with patch('samweb_client.SAMWebClient', return_value=self._make_sam_client([])):
+        with patch('utils.samweb_wrapper.locate_file_strict', return_value=[]):
             job = self.Cls(self.tar, inloc='tape', proto='file')
             with self.assertRaises(ValueError):
                 job._locate_file("f.art")
 
     def test_sam_exception_raises(self):
-        mock_client = MagicMock()
-        mock_client.locateFile.side_effect = Exception("SAM unavailable")
-        with patch('samweb_client.SAMWebClient', return_value=mock_client):
+        with patch('utils.samweb_wrapper.locate_file_strict',
+                   side_effect=Exception("SAM unavailable")):
             job = self.Cls(self.tar, inloc='tape', proto='file')
             with self.assertRaises(ValueError):
                 job._locate_file("f.art")
@@ -617,9 +611,7 @@ class TestFormatFilename(unittest.TestCase):
             {'location_type': 'tape',
              'full_path': 'enstore:/pnfs/mu2e/tape/phy-sim/f.art'},
         ]
-        mock_client = MagicMock()
-        mock_client.locateFile.return_value = locations
-        with patch('samweb_client.SAMWebClient', return_value=mock_client):
+        with patch('utils.samweb_wrapper.locate_file_strict', return_value=locations):
             from utils.jobfcl import Mu2eJobFCL
             job = Mu2eJobFCL(self.tar, inloc='tape', proto='root')
             result = job._format_filename("f.art")
@@ -1157,12 +1149,11 @@ class TestLocateFileStash(unittest.TestCase):
 
     def test_stash_locate_no_sam_call(self):
         """SAM must not be contacted when inloc='stash'."""
-        mock_sam = MagicMock()
-        with patch('samweb_client.SAMWebClient', return_value=mock_sam):
+        with patch('utils.samweb_wrapper.locate_file_strict') as mock_locate:
             from utils.jobfcl import Mu2eJobFCL
             job = Mu2eJobFCL(self.tar, inloc='stash', proto='file')
             job._locate_file("dts.mu2e.CeEndpoint.Run1Bab.001440_00001234.art")
-        mock_sam.locateFile.assert_not_called()
+        mock_locate.assert_not_called()
 
     def test_stash_path_structure(self):
         job = self.Cls(self.tar, inloc='stash', proto='file')
@@ -1315,7 +1306,7 @@ class TestStashUtils(unittest.TestCase):
              'full_path': '/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/CeEndpoint/Run1Bab/art'}
         ]
 
-        with patch('utils.stash_utils.list_files', return_value=mock_files), \
+        with patch('utils.stash_utils.files_in_dataset', return_value=mock_files), \
              patch('utils.stash_utils.locate_file_full', return_value=mock_locations), \
              patch('os.makedirs') as mock_mkdir, \
              patch('subprocess.run') as mock_run:
@@ -1342,7 +1333,7 @@ class TestStashUtils(unittest.TestCase):
         mock_run_result = MagicMock()
         mock_run_result.returncode = 0
 
-        with patch('utils.stash_utils.list_files', return_value=mock_files), \
+        with patch('utils.stash_utils.files_in_dataset', return_value=mock_files), \
              patch('utils.stash_utils.locate_file_full', return_value=mock_locations), \
              patch('os.makedirs'), \
              patch('subprocess.run', return_value=mock_run_result) as mock_run:
@@ -1369,7 +1360,7 @@ class TestStashUtils(unittest.TestCase):
         mock_run_result = MagicMock()
         mock_run_result.returncode = 0
 
-        with patch('utils.stash_utils.list_files', return_value=mock_files), \
+        with patch('utils.stash_utils.files_in_dataset', return_value=mock_files), \
              patch('utils.stash_utils.locate_file_full', return_value=mock_locations), \
              patch('os.makedirs'), \
              patch('subprocess.run', return_value=mock_run_result) as mock_run:
@@ -1389,7 +1380,7 @@ class TestStashUtils(unittest.TestCase):
 
         mock_files = ["dts.mu2e.CeEndpoint.Run1Bab.001440_00000000.art"]
 
-        with patch('utils.stash_utils.list_files', return_value=mock_files), \
+        with patch('utils.stash_utils.files_in_dataset', return_value=mock_files), \
              patch('utils.stash_utils.locate_file_full', return_value=[]), \
              patch('os.makedirs'), \
              patch('subprocess.run') as mock_run:
@@ -1572,26 +1563,22 @@ class TestStashFallback(unittest.TestCase):
         self._exists_patch.stop()
         os.unlink(self.tar)
 
-    def _mock_sam(self, location_type='tape'):
-        mock_sam = MagicMock()
-        mock_sam.locateFile.return_value = [
-            {'location_type': location_type, 'full_path': self._TAPE_DIR}
-        ]
-        return mock_sam
+    def _sam_locations(self, location_type='tape'):
+        return [{'location_type': location_type, 'full_path': self._TAPE_DIR}]
 
     def test_sam_called_when_stash_file_missing(self):
         """SAM is contacted as fallback when the stash CVMFS path does not exist."""
-        mock_sam = self._mock_sam()
-        with patch('samweb_client.SAMWebClient', return_value=mock_sam):
+        with patch('utils.samweb_wrapper.locate_file_strict',
+                   return_value=self._sam_locations()) as mock_locate:
             from utils.jobfcl import Mu2eJobFCL
             job = Mu2eJobFCL(self.tar, inloc='stash', proto='file')
             job._locate_file(self._FNAME)
-        mock_sam.locateFile.assert_called_once_with(self._FNAME)
+        mock_locate.assert_called_once_with(self._FNAME)
 
     def test_fallback_returns_sam_path(self):
         """The SAM-provided path is returned when the stash file is absent."""
-        mock_sam = self._mock_sam()
-        with patch('samweb_client.SAMWebClient', return_value=mock_sam):
+        with patch('utils.samweb_wrapper.locate_file_strict',
+                   return_value=self._sam_locations()):
             from utils.jobfcl import Mu2eJobFCL
             job = Mu2eJobFCL(self.tar, inloc='stash', proto='file')
             path = job._locate_file(self._FNAME)
@@ -1599,9 +1586,7 @@ class TestStashFallback(unittest.TestCase):
 
     def test_fallback_raises_when_sam_has_no_locations(self):
         """ValueError is raised when the file is absent from stash and SAM finds nothing."""
-        mock_sam = MagicMock()
-        mock_sam.locateFile.return_value = []
-        with patch('samweb_client.SAMWebClient', return_value=mock_sam):
+        with patch('utils.samweb_wrapper.locate_file_strict', return_value=[]):
             from utils.jobfcl import Mu2eJobFCL
             job = Mu2eJobFCL(self.tar, inloc='stash', proto='file')
             with self.assertRaises(ValueError):
@@ -1609,8 +1594,8 @@ class TestStashFallback(unittest.TestCase):
 
     def test_fallback_format_filename_applies_xroot(self):
         """_format_filename with proto='root' converts the SAM tape path to an xroot URL."""
-        mock_sam = self._mock_sam()
-        with patch('samweb_client.SAMWebClient', return_value=mock_sam):
+        with patch('utils.samweb_wrapper.locate_file_strict',
+                   return_value=self._sam_locations()):
             from utils.jobfcl import Mu2eJobFCL
             job = Mu2eJobFCL(self.tar, inloc='stash', proto='root')
             result = job._format_filename(self._FNAME)
@@ -1688,12 +1673,12 @@ class TestNextVersion(unittest.TestCase):
 
     def test_no_existing_files_returns_zero(self):
         from utils.json2jobdef import _next_version
-        with patch('utils.json2jobdef.list_files', return_value=[]):
+        with patch('utils.json2jobdef.files_in_dataset', return_value=[]):
             self.assertEqual(_next_version(self._cfg()), 0)
 
     def test_single_version_zero_returns_one(self):
         from utils.json2jobdef import _next_version
-        with patch('utils.json2jobdef.list_files',
+        with patch('utils.json2jobdef.files_in_dataset',
                    return_value=['cnf.mu2e.TestDesc.TC.0.tar']):
             self.assertEqual(_next_version(self._cfg()), 1)
 
@@ -1702,18 +1687,18 @@ class TestNextVersion(unittest.TestCase):
         files = ['cnf.mu2e.TestDesc.TC.0.tar',
                  'cnf.mu2e.TestDesc.TC.1.tar',
                  'cnf.mu2e.TestDesc.TC.2.tar']
-        with patch('utils.json2jobdef.list_files', return_value=files):
+        with patch('utils.json2jobdef.files_in_dataset', return_value=files):
             self.assertEqual(_next_version(self._cfg()), 3)
 
     def test_sam_exception_returns_zero(self):
         from utils.json2jobdef import _next_version
-        with patch('utils.json2jobdef.list_files', side_effect=Exception("SAM down")):
+        with patch('utils.json2jobdef.files_in_dataset', side_effect=Exception("SAM down")):
             self.assertEqual(_next_version(self._cfg()), 0)
 
     def test_non_sequential_versions(self):
         from utils.json2jobdef import _next_version
         files = ['cnf.mu2e.TestDesc.TC.0.tar', 'cnf.mu2e.TestDesc.TC.5.tar']
-        with patch('utils.json2jobdef.list_files', return_value=files):
+        with patch('utils.json2jobdef.files_in_dataset', return_value=files):
             self.assertEqual(_next_version(self._cfg()), 6)
 
 
@@ -1742,10 +1727,9 @@ class TestComputeExtendExclusions(unittest.TestCase):
 
         with patch('utils.json2jobdef.get_output_dataset_names',
                    return_value=['mcs.mu2e.TestDesc.TC.art']), \
-             patch('utils.json2jobdef.list_files', side_effect=[
-                 parents,            # isparentof query
-                 [],                 # _next_version dataset query
-             ]):
+             patch('utils.json2jobdef.parents_of_dataset',
+                   return_value=parents), \
+             patch('utils.json2jobdef.files_in_dataset', return_value=[]):
             cfg = self._cfg()
             result = _compute_extend_exclusions(cfg)
 
@@ -1757,10 +1741,10 @@ class TestComputeExtendExclusions(unittest.TestCase):
 
         with patch('utils.json2jobdef.get_output_dataset_names',
                    return_value=['mcs.mu2e.TestDesc.TC.art']), \
-             patch('utils.json2jobdef.list_files', side_effect=[
-                 ['parent.art'],                      # isparentof
-                 ['cnf.mu2e.TestDesc.TC.0.tar'],      # _next_version
-             ]):
+             patch('utils.json2jobdef.parents_of_dataset',
+                   return_value=['parent.art']), \
+             patch('utils.json2jobdef.files_in_dataset',
+                   return_value=['cnf.mu2e.TestDesc.TC.0.tar']):
             cfg = self._cfg()
             _compute_extend_exclusions(cfg)
 
@@ -1779,11 +1763,11 @@ class TestComputeExtendExclusions(unittest.TestCase):
 
         with patch('utils.json2jobdef.get_output_dataset_names',
                    return_value=['ds1.art', 'ds2.art']), \
-             patch('utils.json2jobdef.list_files', side_effect=[
+             patch('utils.json2jobdef.parents_of_dataset', side_effect=[
                  ['a.art', 'b.art'],     # parents of ds1
                  ['b.art', 'c.art'],     # parents of ds2
-                 [],                     # _next_version
-             ]):
+             ]), \
+             patch('utils.json2jobdef.files_in_dataset', return_value=[]):
             cfg = self._cfg()
             result = _compute_extend_exclusions(cfg)
 
@@ -2171,13 +2155,13 @@ class TestGenericCnfDiscovery(unittest.TestCase):
         # input dig at a DIFFERENT dsconf than the output (the realistic case)
         dig = "dig.mu2e.CeEndpoint.Run1Bai_best_v1_4-000.001470_00000004.art"
         try:
-            with patch('utils.samweb_wrapper.list_files', return_value=[dig]) as lf:
+            with patch('utils.samweb_wrapper.files_like', return_value=[dig]) as fl:
                 got = jobdef_lookup.derive_generic_input(tar, target)
             self.assertEqual(got, dig)
             # queried the dig tier (mcs->dig) for the stripped desc + exact seq
-            dim = lf.call_args[0][0]
-            self.assertIn("dig.mu2e.CeEndpoint.", dim)
-            self.assertIn("dh.sequencer 001470_00000004", dim)
+            pattern = fl.call_args[0][0]
+            self.assertIn("dig.mu2e.CeEndpoint.", pattern)
+            self.assertEqual(fl.call_args[1].get('sequencer'), "001470_00000004")
         finally:
             os.unlink(tar)
 
@@ -2186,7 +2170,7 @@ class TestGenericCnfDiscovery(unittest.TestCase):
         from utils import jobdef_lookup
         tar = _make_tarball(_generic_reco_jobpars(), "#include \"OnSpill.fcl\"\n")
         try:
-            with patch('utils.samweb_wrapper.list_files', return_value=[]):
+            with patch('utils.samweb_wrapper.files_like', return_value=[]):
                 with self.assertRaises(ValueError):
                     jobdef_lookup.derive_generic_input(
                         tar, "mcs.mu2e.X.MDC2025af_best_v1_3.001430_00000001.art")
@@ -2694,7 +2678,7 @@ def _cnf_with_output(output_filename, run=1430, njobs=None):
         "dsconf": "TC",
     }
     if njobs is not None:
-        jp["njobs"] = njobs
+        jp["tbs"]["njobs"] = njobs
     return _make_tarball(jp, "module_type : EmptyEvent\n")
 
 
@@ -3263,6 +3247,190 @@ class TestUniformityReport(unittest.TestCase):
         out = buf.getvalue()
         self.assertIn('Good', out)
         self.assertNotIn('NoGen', out)  # missing-gencount goes to stderr, not the table
+
+
+# ---------------------------------------------------------------------------
+# 32. Mu2eJobBase job arithmetic (hoisted single implementation)
+# ---------------------------------------------------------------------------
+
+class TestJobArithmeticConsolidation(unittest.TestCase):
+    """sequencer/job_outputs/job_event_settings/job_seed/njobs live once in
+    Mu2eJobBase; the worker names its real output files through them, so
+    Mu2eJobPars (mkrecovery, submit, db_builder, jobdef_lookup) must return
+    byte-identical answers. Regression tests for the divergences that existed
+    while jobiodetail.py and jobquery.py carried stale copies."""
+
+    def _tar(self, tbs, owner=None, dsconf=None):
+        jp = {"code": "", "setup": "/cvmfs/test/setup.sh", "tbs": tbs,
+              "jobname": "cnf.mu2e.X.TC.0.tar"}
+        if owner is not None:
+            jp["owner"] = owner
+        if dsconf is not None:
+            jp["dsconf"] = dsconf
+        return _make_tarball(jp, "module_type : EmptyEvent\n")
+
+    def test_sequencer_from_index_via_jobpars(self):
+        """Position-based sequencer (worker semantics), not the parent file's
+        name — old Mu2eJobIO returned the parent sequencer, so mkrecovery
+        mispredicted filenames whenever the parent dataset had holes."""
+        from utils.jobquery import Mu2eJobPars
+        tar = self._tar({
+            "inputs": {"source.fileNames":
+                       [1, ["dts.mu2e.P.C.001470_00000005.art",
+                            "dts.mu2e.P.C.001470_00000009.art"]]},
+            "sequencer_from_index": True,
+        })
+        try:
+            jp = Mu2eJobPars(tar)
+            self.assertEqual(jp.sequencer(0), "001470_00000000")
+            self.assertEqual(jp.sequencer(1), "001470_00000001")
+        finally:
+            os.unlink(tar)
+
+    def test_pbisequence_runnumber_sequencer(self):
+        """source.runNumber (PBISequence) — old Mu2eJobIO raised on it."""
+        from utils.jobquery import Mu2eJobPars
+        tar = self._tar({"event_id": {"source.runNumber": 1202}})
+        try:
+            self.assertEqual(Mu2eJobPars(tar).sequencer(7), "001202_00000007")
+        finally:
+            os.unlink(tar)
+
+    def test_event_id_precedence_over_inputs(self):
+        """Mix-shaped jobdef (inputs AND event_id): the run number wins —
+        old Mu2eJobIO consulted the inputs first."""
+        from utils.jobquery import Mu2eJobPars
+        tar = self._tar({
+            "event_id": {"source.firstRun": 1470},
+            "inputs": {"source.fileNames":
+                       [1, ["dts.mu2e.P.C.000999_00000042.art"]]},
+        })
+        try:
+            self.assertEqual(Mu2eJobPars(tar).sequencer(0), "001470_00000000")
+        finally:
+            os.unlink(tar)
+
+    def test_job_outputs_owner_version_substitution(self):
+        """`.owner.`/`.version.` placeholders substitute through Mu2eJobPars
+        exactly as through Mu2eJobFCL — old Mu2eJobIO left them literal."""
+        from utils.jobquery import Mu2eJobPars
+        from utils.jobfcl import Mu2eJobFCL
+        tar = self._tar({
+            "event_id": {"source.firstRun": 1430},
+            "outfiles": {"outputs.Output.fileName":
+                         "dig.owner.Foo.version.sequencer.art"},
+        }, owner="alice", dsconf="Conf1")
+        try:
+            expected = {"outputs.Output.fileName":
+                        "dig.alice.Foo.Conf1.001430_00000003.art"}
+            self.assertEqual(Mu2eJobPars(tar).job_outputs(3), expected)
+            self.assertEqual(Mu2eJobFCL(tar).job_outputs(3), expected)
+        finally:
+            os.unlink(tar)
+
+    def test_njobs_embedded_wins(self):
+        """tbs.njobs (declared cap) beats the derived count."""
+        from utils.jobquery import Mu2eJobPars
+        tar = self._tar({
+            "njobs": 3,
+            "inputs": {"source.fileNames":
+                       [1, [f"dts.mu2e.P.C.001470_{i:08d}.art" for i in range(5)]]},
+        })
+        try:
+            self.assertEqual(Mu2eJobPars(tar).njobs(), 3)
+        finally:
+            os.unlink(tar)
+
+    def test_njobs_derived_from_inputs(self):
+        from utils.jobquery import Mu2eJobPars
+        tar = self._tar({
+            "inputs": {"source.fileNames":
+                       [3, [f"dts.mu2e.P.C.001470_{i:08d}.art" for i in range(10)]]},
+        })
+        try:
+            self.assertEqual(Mu2eJobPars(tar).njobs(), 4)  # ceil(10/3)
+        finally:
+            os.unlink(tar)
+
+    def test_njobs_from_samplinginput(self):
+        """Resampler jobdefs derive njobs from samplinginput — the old
+        Mu2eJobFCL copy answered 0 for these."""
+        from utils.jobfcl import Mu2eJobFCL
+        tar = self._tar({
+            "samplinginput": {"source.fileNames":
+                              [4, [f"sim.mu2e.S.C.001470_{i:08d}.art" for i in range(10)]]},
+        })
+        try:
+            self.assertEqual(Mu2eJobFCL(tar).njobs(), 3)  # ceil(10/4)
+        finally:
+            os.unlink(tar)
+
+    def test_njobs_open_ended_is_zero(self):
+        """Generator with no embedded count: 0 = 'not a property of this
+        jobdef' (count lives in the POMS map), never a guess."""
+        from utils.jobquery import Mu2eJobPars
+        tar = self._tar({"event_id": {"source.firstRun": 1430}})
+        try:
+            self.assertEqual(Mu2eJobPars(tar).njobs(), 0)
+        finally:
+            os.unlink(tar)
+
+    def test_njobs_invalid_merge_fails_loud(self):
+        """No silent merge_factor=1 fallback (old jobquery behavior)."""
+        from utils.jobquery import Mu2eJobPars
+        tar = self._tar({
+            "inputs": {"source.fileNames": [0, ["dts.mu2e.P.C.001470_00000000.art"]]},
+        })
+        try:
+            with self.assertRaises(ValueError):
+                Mu2eJobPars(tar).njobs()
+        finally:
+            os.unlink(tar)
+
+
+# ---------------------------------------------------------------------------
+# 33. jobdef._resolve_njobs (build-time tbs.njobs embedding)
+# ---------------------------------------------------------------------------
+
+class TestResolveNjobs(unittest.TestCase):
+
+    def _files(self, n):
+        return [f"dts.mu2e.P.C.001470_{i:08d}.art" for i in range(n)]
+
+    def test_declared_within_capacity(self):
+        from utils.jobdef import _resolve_njobs
+        tbs = {"inputs": {"source.fileNames": [2, self._files(10)]}}
+        self.assertEqual(_resolve_njobs({"njobs": 4}, tbs), 4)
+
+    def test_declared_exceeds_capacity_fails_loud(self):
+        from utils.jobdef import _resolve_njobs
+        tbs = {"inputs": {"source.fileNames": [2, self._files(10)]}}
+        with self.assertRaises(ValueError):
+            _resolve_njobs({"njobs": 6}, tbs)
+
+    def test_query_mode_derives(self):
+        from utils.jobdef import _resolve_njobs
+        tbs = {"inputs": {"source.fileNames": [3, self._files(10)]}}
+        self.assertEqual(_resolve_njobs({"njobs": -1}, tbs), 4)
+
+    def test_generator_declared(self):
+        from utils.jobdef import _resolve_njobs
+        self.assertEqual(_resolve_njobs({"njobs": 500}, {"event_id": {"source.firstRun": 1430}}), 500)
+
+    def test_generator_undeclared_omitted(self):
+        from utils.jobdef import _resolve_njobs
+        self.assertIsNone(_resolve_njobs({}, {"event_id": {"source.firstRun": 1430}}))
+
+    def test_generic_tarball_omitted(self):
+        """Absence is load-bearing for generic tarballs (direct-input mode)."""
+        from utils.jobdef import _resolve_njobs
+        tbs = {"outfiles": {"outputs.Output.fileName": "nts.owner.{desc}.version.sequencer.root"}}
+        self.assertIsNone(_resolve_njobs({"njobs": 500, "generic_tarball": True}, tbs))
+
+    def test_samplinginput_capacity(self):
+        from utils.jobdef import _resolve_njobs
+        tbs = {"samplinginput": {"source.fileNames": [4, self._files(10)]}}
+        self.assertEqual(_resolve_njobs({"njobs": -1}, tbs), 3)
 
 
 # ---------------------------------------------------------------------------

@@ -1,19 +1,98 @@
 #!/usr/bin/env python3
 """
-Wrapper for samweb_client Python module
+Wrapper for samweb_client Python module — the single SAM access path.
+
+All SAM dimension grammar in prodtools is composed in this module.
+Callers must not hand-write "dh.dataset ..." / "defname: ..." strings;
+they call a named query method, or build the string with a q_* helper
+when the query itself is an argument (e.g. create_definition).
+
+Error-mode policy:
+- Named query methods (files_in_dataset, dataset_file_count, ...) fail
+  loud: a SAM outage raises instead of masquerading as an empty/zero
+  result.
+- Legacy generic passthroughs (list_files, count_files, ...) keep their
+  historical swallow-and-default behavior; some callers rely on it
+  (e.g. prod_utils uses describe_definition() == '' as an existence
+  check).
 """
 
 import functools
-from typing import Dict, List
+import os
+from typing import Dict, List, Optional
 
 from samweb_client import SAMWebClient #type: ignore
+
+
+# ---------------------------------------------------------------------------
+# SAM dimension grammar — query-string builders
+# ---------------------------------------------------------------------------
+
+def q_dataset(dataset: str, with_events: bool = False,
+              availability: Optional[str] = None) -> str:
+    """Dimension string selecting the files of a dataset."""
+    q = f"dh.dataset {dataset}"
+    if with_events:
+        q += " and event_count>0"
+    if availability:
+        q += f" with availability {availability}"
+    return q
+
+
+def q_definition(defname: str, with_events: bool = False) -> str:
+    """Dimension string selecting the files of a SAM definition."""
+    q = f"defname: {defname}"
+    if with_events:
+        q += " and event_count>0"
+    return q
+
+
+def q_dataset_below_sequencer(dataset: str, sequencer_upper: str) -> str:
+    """Files of `dataset` with sequencer strictly below `sequencer_upper`
+    (index-definition windows)."""
+    return f"dh.dataset {dataset} and dh.sequencer < {sequencer_upper}"
+
+
+def q_dataset_files_named(dataset: str, filenames: List[str]) -> str:
+    """Files of `dataset` restricted to an explicit basename list
+    (recovery definitions)."""
+    return f"dh.dataset {dataset} and file_name in ({', '.join(filenames)})"
+
+
+def q_dataset_like(pattern: str, sequencer: Optional[str] = None) -> str:
+    """Files whose dataset matches a SAM `like` pattern (% wildcards),
+    optionally pinned to one sequencer."""
+    q = f"dh.dataset like '{pattern}'"
+    if sequencer:
+        q += f" and dh.sequencer {sequencer}"
+    return q
+
+
+def q_parents_of_dataset(dataset: str) -> str:
+    """Files that are parents of any file in `dataset`."""
+    return f"isparentof: (dh.dataset {dataset})"
+
+
+def q_children_of_file(filename: str) -> str:
+    """Files that are children of `filename`."""
+    return f"ischildof: (file_name {filename})"
+
+
+def q_recent_files(filetype: str, user: str, since_date: str) -> str:
+    """Files of `filetype` created by `user` after `since_date` (YYYY-MM-DD)."""
+    return f"Create_Date > {since_date} and file_format {filetype} and user {user}"
 
 class SAMWebWrapper:
     """Wrapper for samweb_client to replace external samweb commands."""
     
     def __init__(self):
-        """Initialize the SAMWeb client."""
-        self.client = SAMWebClient()
+        """Initialize the SAMWeb client. The experiment must resolve even
+        on grid workers where SAM_EXPERIMENT may be unset (jobfcl runs in
+        the worker's inner loop), so fall back to 'mu2e' explicitly rather
+        than relying on samweb_client's env-only default."""
+        experiment = (os.environ.get('SAM_EXPERIMENT')
+                      or os.environ.get('EXPERIMENT') or 'mu2e')
+        self.client = SAMWebClient(experiment=experiment)
     
     def count_files(self, query: str) -> int:
         """Count files matching a query (equivalent to samweb count-files)."""
@@ -137,7 +216,7 @@ class SAMWebWrapper:
     
     def file_lineage(self, filename: str, lineage_type: str = 'parents') -> List[str]:
         """Get file lineage using SAM client getFileLineage method.
-        
+
         Args:
             filename: Name of the file to get lineage for
             lineage_type: Type of lineage ('parents', 'children', 'ancestors', 'descendants', 'rawancestors')
@@ -148,7 +227,65 @@ class SAMWebWrapper:
         except Exception as e:
             print(f"Error getting file lineage {lineage_type} for {filename}: {e}")
             return []
-    
+
+    # -----------------------------------------------------------------
+    # Named queries — fail loud.
+    # Unlike the legacy passthroughs above, these do NOT swallow
+    # exceptions: a SAM outage raises instead of masquerading as an
+    # empty/zero result. Callers that can tolerate absence handle it
+    # themselves, visibly.
+    # -----------------------------------------------------------------
+
+    def files_in_dataset(self, dataset: str, with_events: bool = False,
+                         availability: Optional[str] = None) -> List[str]:
+        """List the files of a dataset."""
+        return self.client.listFiles(q_dataset(dataset, with_events, availability))
+
+    def dataset_file_count(self, dataset: str, with_events: bool = False) -> int:
+        """Number of files in a dataset."""
+        return self.client.countFiles(q_dataset(dataset, with_events))
+
+    def dataset_summary(self, dataset: str) -> Dict:
+        """SAM summary dict for a dataset (file_count, total_event_count,
+        total_file_size, ...)."""
+        return self.client.listFilesSummary(q_dataset(dataset))
+
+    def definition_file_count(self, defname: str, with_events: bool = False) -> int:
+        """Number of files in a SAM definition."""
+        return self.client.countFiles(q_definition(defname, with_events))
+
+    def parents_of_dataset(self, dataset: str) -> List[str]:
+        """Files that are parents of any file in `dataset`."""
+        return self.client.listFiles(q_parents_of_dataset(dataset))
+
+    def children_of_file(self, filename: str) -> List[str]:
+        """Files that are children of `filename`."""
+        return self.client.listFiles(q_children_of_file(filename))
+
+    def files_like(self, pattern: str, sequencer: Optional[str] = None) -> List[str]:
+        """Files whose dataset matches a SAM `like` pattern."""
+        return self.client.listFiles(q_dataset_like(pattern, sequencer))
+
+    def locate_file_strict(self, filename: str) -> List[Dict]:
+        """locate_file_full without the error swallowing — for the worker
+        fcl-generation path, where a masked SAM error must not surface as
+        a misleading 'file not found'."""
+        return self.client.locateFile(filename)
+
+    def definitions_matching(self, defname: Optional[str] = None,
+                             user: Optional[str] = None) -> List[str]:
+        """List definitions filtered by name pattern (% wildcard) and/or
+        creating user — replaces `samweb list-definitions` CLI calls."""
+        kwargs = {}
+        if defname:
+            kwargs['defname'] = defname
+        if user:
+            kwargs['user'] = user
+        result = self.client.listDefinitions(**kwargs)
+        if hasattr(result, '__iter__') and not isinstance(result, list):
+            return list(result)
+        return result
+
 
 @functools.lru_cache(maxsize=1)
 def get_samweb_wrapper() -> SAMWebWrapper:
@@ -206,3 +343,43 @@ def get_metadata(filename: str) -> Dict:
 def file_lineage(filename: str, lineage_type: str = 'parents') -> List[str]:
     """Get file lineage using SAM client getFileLineage method."""
     return get_samweb_wrapper().file_lineage(filename, lineage_type)
+
+# --- Named queries (fail loud) ---
+
+def files_in_dataset(dataset: str, with_events: bool = False,
+                     availability: Optional[str] = None) -> List[str]:
+    """List the files of a dataset."""
+    return get_samweb_wrapper().files_in_dataset(dataset, with_events, availability)
+
+def dataset_file_count(dataset: str, with_events: bool = False) -> int:
+    """Number of files in a dataset."""
+    return get_samweb_wrapper().dataset_file_count(dataset, with_events)
+
+def dataset_summary(dataset: str) -> Dict:
+    """SAM summary dict for a dataset."""
+    return get_samweb_wrapper().dataset_summary(dataset)
+
+def definition_file_count(defname: str, with_events: bool = False) -> int:
+    """Number of files in a SAM definition."""
+    return get_samweb_wrapper().definition_file_count(defname, with_events)
+
+def parents_of_dataset(dataset: str) -> List[str]:
+    """Files that are parents of any file in `dataset`."""
+    return get_samweb_wrapper().parents_of_dataset(dataset)
+
+def children_of_file(filename: str) -> List[str]:
+    """Files that are children of `filename`."""
+    return get_samweb_wrapper().children_of_file(filename)
+
+def files_like(pattern: str, sequencer: Optional[str] = None) -> List[str]:
+    """Files whose dataset matches a SAM `like` pattern."""
+    return get_samweb_wrapper().files_like(pattern, sequencer)
+
+def locate_file_strict(filename: str) -> List[Dict]:
+    """Locate a file, raising on SAM errors (no swallow)."""
+    return get_samweb_wrapper().locate_file_strict(filename)
+
+def definitions_matching(defname: Optional[str] = None,
+                         user: Optional[str] = None) -> List[str]:
+    """List definitions filtered by name pattern and/or creating user."""
+    return get_samweb_wrapper().definitions_matching(defname, user)

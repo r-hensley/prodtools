@@ -68,7 +68,7 @@ def get_dataset_efficiency(dataset_name, samweb, max_files=10, verbosity=0, extr
     """
     try:
         # Get total number of files in dataset
-        file_list = samweb.list_files(f"dh.dataset={dataset_name} with availability anylocation")
+        file_list = samweb.files_in_dataset(dataset_name, availability='anylocation')
         num_files_total = len(file_list)
         
         # Use the same process_dataset function from genFilterEff

@@ -22,7 +22,14 @@ from utils.config_utils import get_tarball_desc, prepare_fields_for_job
 from utils.jobquery import Mu2eJobPars
 from utils.jobdef import create_jobdef, get_output_dataset_names
 from utils.jobfcl import validate_output_filenames
-from utils.samweb_wrapper import list_files, count_files, locate_file
+from utils.samweb_wrapper import (
+    list_files,
+    count_files,
+    locate_file,
+    files_in_dataset,
+    parents_of_dataset,
+    q_dataset,
+)
 
 
 def _write_random_selection(out_f, query: str, total_needed: int, seed_source: str):
@@ -216,9 +223,6 @@ def _write_sam_inputs(config, input_data, exclude_files=None):
     explicit so zero-event files aren't silently dropped).
     """
     event_count_positive = bool(config.get('_event_count_positive'))
-    query_template = "dh.dataset={}"
-    if event_count_positive:
-        query_template += " and event_count>0"
 
     with open('inputs.txt', 'w') as out_f:
         for dataset, merge_factor in input_data.items():
@@ -234,7 +238,7 @@ def _write_sam_inputs(config, input_data, exclude_files=None):
                 if merge_factor is None:
                     raise ValueError(f"input_data spec for {dataset} must include 'count' or 'merge_factor' when using dict form")
 
-            query = query_template.format(dataset)
+            query = q_dataset(dataset, with_events=event_count_positive)
 
             if random_spec.get('random'):
                 per_job = int(merge_factor)
@@ -274,7 +278,7 @@ def _next_version(config):
     dataset = f"cnf.{config['owner']}.{desc}.{config['dsconf']}.tar"
 
     try:
-        files = list_files(f"dh.dataset={dataset}")
+        files = files_in_dataset(dataset)
     except Exception:
         return 0
 
@@ -305,8 +309,7 @@ def _compute_extend_exclusions(config):
 
     exclude_files = set()
     for ds in output_datasets:
-        query = f"isparentof: (dh.dataset {ds})"
-        parents = list_files(query)
+        parents = parents_of_dataset(ds)
         exclude_files.update(parents)
         print(f"  Output dataset {ds}: {len(parents)} already-processed input files")
 

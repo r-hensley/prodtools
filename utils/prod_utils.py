@@ -15,15 +15,15 @@ from pathlib import Path
 from .jobdef import create_jobdef
 from .job_common import Mu2eName
 from .jobfcl import Mu2eJobFCL
-from .jobiodetail import Mu2eJobIO
 from .jobquery import Mu2eJobPars
 from .samweb_wrapper import (
-    count_files,
     create_definition,
     delete_definition,
     describe_definition,
-    list_files,
     locate_file_full,
+    dataset_summary,
+    definition_file_count,
+    q_dataset_below_sequencer,
 )
 
 def setup_logging(verbose: bool) -> None:
@@ -168,11 +168,10 @@ def get_def_counts(dataset, include_empty=False):
     """Get file count and event count for a dataset."""
 
     # Count files
-    query = f"defname: {dataset}" if include_empty else f"defname: {dataset} and event_count>0"
-    nfiles = count_files(query)
-    
-    # Count events (listFilesSummary returns a dict, or [] on error)
-    result = list_files(f"dh.dataset={dataset}", summary=True)
+    nfiles = definition_file_count(dataset, with_events=not include_empty)
+
+    # Count events
+    result = dataset_summary(dataset)
     nevts = (result.get('total_event_count') or 0) if isinstance(result, dict) else 0
 
     if nfiles == 0:
@@ -250,7 +249,7 @@ def create_index_definition(output_index_dataset, job_count, input_index_dataset
 
     # Create the new definition
     print(f"Creating definition {idx_name}...")
-    create_definition(idx_name, f"dh.dataset {input_index_dataset} and dh.sequencer < {idx_format}")
+    create_definition(idx_name, q_dataset_below_sequencer(input_index_dataset, idx_format))
     describe_definition(idx_name)
 
 def validate_jobdesc(jobdesc):
@@ -541,7 +540,7 @@ def process_jobdef(jobdesc, fname, args):
         run(cmd, shell=True)
 
     # List input files
-    job_io = Mu2eJobIO(tarball)
+    job_io = Mu2eJobPars(tarball)
     inputs = job_io.job_inputs(job_index_num)
     # Flatten the dictionary values into a single list
     all_files = []

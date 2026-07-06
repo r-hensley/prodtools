@@ -7,7 +7,7 @@ import copy
 import sys
 import itertools
 from .prod_utils import *
-from .samweb_wrapper import list_files
+from .samweb_wrapper import files_in_dataset
 from .config_utils import _get_first_if_list, prepare_fields_for_job, get_tarball_desc
 
 def _create_pileup_catalog(dataset, filename):
@@ -23,7 +23,7 @@ def _create_pileup_catalog(dataset, filename):
     
     all_files = []
     for ds, merge_factor in dataset.items():
-        files = list_files(f"dh.dataset={ds} and event_count>0")
+        files = files_in_dataset(ds, with_events=True)
         all_files.extend(files)
     
     with open(filename, 'w') as f:
@@ -139,10 +139,12 @@ def build_pileup_args(config):
                     for inc in includes:
                         f.write(f'#include "{inc}"\n')
                 else:
-                    if isinstance(val, str) and not val.startswith('"') and not val.isdigit():
-                        f.write(f'{key}: "{val}"\n')
-                    else:
-                        f.write(f'{key}: {val}\n')
+                    # json.dumps for proper FCL formatting — matches
+                    # write_fcl_template's (correct) approach. The manual
+                    # str()-based branch this replaced rendered Python bools
+                    # as "False"/"True" (invalid FHiCL; needs lowercase),
+                    # a live bug for any mixing-stage boolean override.
+                    f.write(f'{key}: {json.dumps(val)}\n')
 
     return args
 

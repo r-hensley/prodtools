@@ -21,21 +21,9 @@ except ImportError:
 
 def _dataset_dir(dsname: str, location: str) -> str:
     """Absolute /pnfs directory for a Mu2e dataset at the given location.
-
-    Uses Mu2eName.tier_class (the authoritative tier→owner-class map) to
-    derive the `phy-<class>` prefix. Returns '' for unknown locations.
-    """
-    n = Mu2eName.parse(dsname)
-    owner_prefix = "phy" if n.owner == "mu2e" else "usr"
-    base_path = f"{owner_prefix}-{n.tier_class}"
-    ds_path = dsname.replace('.', '/')
-    if location == 'disk':
-        return f"/pnfs/mu2e/persistent/datasets/{base_path}/{ds_path}"
-    if location == 'tape':
-        return f"/pnfs/mu2e/tape/{base_path}/{ds_path}"
-    if location == 'scratch':
-        return f"/pnfs/mu2e/scratch/datasets/{base_path}/{ds_path}"
-    return ""
+    Delegates to file_resolver.dataset_dir (the layout's single home)."""
+    from utils.file_resolver import dataset_dir
+    return dataset_dir(dsname, location)
 
 def parse_args():
     """Parse command line arguments exactly like the Perl version."""
@@ -119,8 +107,8 @@ def get_dataset_files(dataset_name: str, location: Optional[str] = None) -> List
     
     # Get files from SAM
     samweb = get_samweb_wrapper()
-    fns = samweb.list_files(f"dh.dataset {dataset_name}")
-    
+    fns = samweb.files_in_dataset(dataset_name)
+
     if not fns:
         raise RuntimeError(f"No files with dh.dataset={dataset_name} are registered in SAM.")
     
@@ -197,7 +185,7 @@ def main():
     # Handle --basename mode (just print filenames)
     if args.basename:
         samweb = get_samweb_wrapper()
-        fns = samweb.list_files(f"dh.dataset {dsname}")
+        fns = samweb.files_in_dataset(dsname)
         for f in sorted(fns):
             try:
                 print(f)

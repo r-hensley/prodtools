@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple
 if __name__ == '__main__':
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from samweb_wrapper import list_files
+from samweb_wrapper import list_files, dataset_summary, q_recent_files
 from job_common import Mu2eName
 
 
@@ -89,8 +89,7 @@ class DatasetLister:
         older_date = (datetime.now() - timedelta(days=self.days)).strftime("%Y-%m-%d")
         print(f"Checking for {self.filetype} files created after: {older_date} for user: {self.user}")
         
-        query = f"Create_Date > {older_date} and file_format {self.filetype} and user {self.user}"
-        return query
+        return q_recent_files(self.filetype, self.user, older_date)
     
     def extract_dataset_name(self, filename: str) -> str:
         """Extract dataset name: drop the sequencer field from a file name.
@@ -104,9 +103,13 @@ class DatasetLister:
     
     def get_average_filesize(self, dataset: str) -> str:
         """Return average file size in MB, or 'N/A' if unavailable."""
-        query = f"dh.dataset {dataset}"
-        result = list_files(query, summary=True)
-        
+        # A size column is cosmetic: a SAM hiccup degrades to 'N/A'
+        # rather than killing the whole report.
+        try:
+            result = dataset_summary(dataset)
+        except Exception:
+            return "N/A"
+
         if isinstance(result, dict):
             file_count = result.get('file_count', 0)
             total_size = result.get('total_file_size', 0)

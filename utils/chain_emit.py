@@ -287,15 +287,19 @@ def output_datasets(entry, owner='mu2e'):
     for key, val in (unwrap(entry.get('fcl_overrides', {})) or {}).items():
         if not key.endswith('fileName') or not isinstance(val, str) or '/' in val:
             continue
-        parts = val.split('.')
-        if len(parts) != 6:
+        # Templates carry literal placeholder tokens (owner/version/sequencer);
+        # Mu2eName parses them structurally. Only the 6-field file form counts.
+        try:
+            n = Mu2eName.parse(val)
+        except ValueError:
             continue
-        tier, _owner, desc, _version, _seq, ext = parts
-        if '{desc}' in desc:
-            for rd in _deferred_descs(entry):
-                out.append(f"{tier}.{owner}.{desc.replace('{desc}', rd)}.{dsconf}.{ext}")
-        else:
-            out.append(f"{tier}.{owner}.{desc}.{dsconf}.{ext}")
+        if n.is_dataset:
+            continue
+        descs = ([n.description.replace('{desc}', rd) for rd in _deferred_descs(entry)]
+                 if '{desc}' in n.description else [n.description])
+        for d in descs:
+            out.append(str(Mu2eName.build(tier=n.tier, owner=owner, description=d,
+                                          dsconf=dsconf, extension=n.extension)))
     return out
 
 

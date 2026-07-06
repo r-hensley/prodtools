@@ -461,3 +461,7 @@ Note: new dsconf Run1Ban_best_v1_5-000 (DB v1_5 native run-1470 coverage, CaloDt
 ## [2026-07-06] update | File resolver + SAM query module refactor implemented
 Pages updated: 2026-07-03-file-resolver-and-sam-query-plan
 Note: samweb_wrapper deepened (q_* builders + fail-loud named queries, absorbed jobfcl raw client + latestDatasets CLI); new utils/file_resolver.py owns all dCache/CVMFS path grammar (stash/resilient/dataset_dir/storage_scope) with FileResolver(inloc,proto) reproducing jobfcl bug-for-bug; jobfcl/stash_utils/datasetFileList/jobsub_argv delegate. Verified: 8/8 fcl outputs byte-identical on real cnfs across all inloc/proto combos; 292 unit tests at baseline pass state.
+
+## [2026-07-06] update | Review quick wins + test hygiene
+Pages updated: none
+Note: chain_emit.output_datasets now parses/builds via Mu2eName (last core-path grammar bypass gone); owner-default USER->mu2e consolidated into job_common.default_owner() (was copied in jobdef.py x2, json2jobdef.py, Mu2eJobBase); DB-backed tests skipUnless(SQLAlchemy) so plain-ops runs are clean — OK (skipped=11) without pyenv ana, 292/292 OK with it.

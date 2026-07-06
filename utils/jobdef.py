@@ -26,7 +26,7 @@ import tarfile
 from typing import Dict, List, Tuple, Optional, Any
 
 from utils.config_utils import get_tarball_desc
-from utils.job_common import Mu2eName
+from utils.job_common import Mu2eName, default_owner
 
 # Constants matching Perl mu2ejobdef exactly
 FILENAME_JSON = 'jobpars.json'
@@ -220,7 +220,7 @@ def _validate_fcl_template(template_path: str) -> None:
 
 def _build_jobpars_json(config: Dict, tbs: Dict, code: str = "", template_path: str = "") -> Dict:
     """Construct complete jobpars.json structure matching Perl mu2ejobdef exactly."""
-    owner = config.get('owner') or os.getenv('USER', 'mu2e').replace('mu2epro', 'mu2e')
+    owner = config.get('owner') or default_owner()
     desc = get_tarball_desc(config) or config['desc']
     dsconf = config['dsconf']
     
@@ -669,7 +669,7 @@ def create_jobdef(config: Dict, fcl_path: str = 'template.fcl', job_args: List[s
     - Processes all source types, output files, seeds, etc.
     - Returns Path to the created file
     """
-    owner = config.get('owner') or os.getenv('USER', 'mu2e').replace('mu2epro', 'mu2e')
+    owner = config.get('owner') or default_owner()
     
     # Handle auto-description
     if config.get('auto_description') is not None:

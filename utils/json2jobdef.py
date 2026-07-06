@@ -19,6 +19,7 @@ from pathlib import Path
 from utils.prod_utils import *
 from utils.mixing_utils import *
 from utils.config_utils import get_tarball_desc, prepare_fields_for_job
+from utils.job_common import default_owner
 from utils.jobquery import Mu2eJobPars
 from utils.jobdef import create_jobdef, get_output_dataset_names
 from utils.jobfcl import validate_output_filenames
@@ -686,7 +687,7 @@ def process_single_entry(config, json_output=True, pushout=False, no_cleanup=Tru
                          jobdefs_list=None, extend=False, ignore_empty=False):
     """Process a single configuration entry (original behavior)"""
     validate_required_fields(config)
-    config['owner'] = config.get('owner', os.getenv('USER', 'mu2e').replace('mu2epro', 'mu2e'))
+    config['owner'] = config.get('owner', default_owner())
     config['inloc'] = config.get('inloc', 'none')
     config['njobs'] = config.get('njobs', -1)
 

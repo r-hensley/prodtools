@@ -216,6 +216,12 @@ def log_storage_location(outputs) -> str:
         return 'disk'
     return outputs[0].get('location', 'disk')
 
+def default_owner() -> str:
+    """Dataset owner defaulted from $USER; mu2epro maps to mu2e (production
+    artifacts are owned by 'mu2e', not the submitting account)."""
+    return os.getenv('USER', 'mu2e').replace('mu2epro', 'mu2e')
+
+
 def remove_storage_prefix(path: str) -> str:
     """Remove storage system prefixes (enstore:, dcache:) from a file path.
     
@@ -248,8 +254,7 @@ class Mu2eJobBase:
         # in job_outputs(). jobpars.json built by mu2ejobdef has no top-level
         # owner/dsconf keys, so these normally resolve to the environment
         # defaults — same behavior Mu2eJobFCL always had.
-        default_owner = os.getenv('USER', 'mu2e').replace('mu2epro', 'mu2e')
-        self.owner = self.json_data.get('owner', default_owner)
+        self.owner = self.json_data.get('owner', default_owner())
         self.dsconf = self.json_data.get('dsconf', 'unknown')
 
     def _extract_member(self, suffix: str) -> bytes:

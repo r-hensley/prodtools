@@ -35,6 +35,18 @@ for _mod in _STUB_MODULES:
     if _mod not in sys.modules:
         sys.modules[_mod] = MagicMock()
 
+# SQLAlchemy can't be MagicMock-stubbed (poms_db declares real ORM models),
+# so DB-backed tests are skipped when it's absent (plain ops env; see
+# reference_pyenv_ana_for_db).
+try:
+    import sqlalchemy  # noqa: F401
+    _HAVE_SQLALCHEMY = True
+except ImportError:
+    _HAVE_SQLALCHEMY = False
+requires_sqlalchemy = unittest.skipUnless(
+    _HAVE_SQLALCHEMY,
+    "requires SQLAlchemy (source pyenv.sh ana after muse setup ops)")
+
 from utils.job_common import Mu2eFilename, remove_storage_prefix, Mu2eJobBase
 
 
@@ -3145,6 +3157,7 @@ class TestSkipProduced(unittest.TestCase):
 # 35. gencount + uniformity (poms_db.DatasetInfo, db_builder, pomsMonitor)
 # ---------------------------------------------------------------------------
 
+@requires_sqlalchemy
 class TestDatasetInfoGencount(unittest.TestCase):
     """DatasetInfo.gen_per_file and .filter_eff derived from gencount."""
 
@@ -3168,6 +3181,7 @@ class TestDatasetInfoGencount(unittest.TestCase):
         self.assertIsNone(self._info(nfiles=10, nevts=5, gencount=None).gen_per_file)
 
 
+@requires_sqlalchemy
 class TestGetDatasetGencount(unittest.TestCase):
     """db_builder._get_dataset_gencount: gencount(file) * nfiles, one metadata call."""
 
@@ -3197,6 +3211,7 @@ class TestGetDatasetGencount(unittest.TestCase):
             self.assertIsNone(db_builder._get_dataset_gencount('ds', 100))
 
 
+@requires_sqlalchemy
 class TestUniformityReport(unittest.TestCase):
     """pomsMonitor.uniformity_report: events/job = round(target/eff)."""
 

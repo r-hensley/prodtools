@@ -494,3 +494,7 @@ Note: config_utils.normalize_input_data(input_data) -> [InputSpec(source, per_jo
 Pages written: justin-vs-prodtools
 Pages updated: index.md
 Note: DUNE justIN docs (v01.06.01, fetched live) mapped onto prodtools concepts. Verified mechanics: generic jobs + justin-get-file (DID/PFN/RSE per call), MQL inputs, --monte-carlo N, unallocated→allocated→processed state machine with auto-reset of unlisted files (built-in per-file recovery), --output-pattern/-next-stage + MetaCat .json sidecars. Core inversion documented: JIT allocation vs frozen cnf input lists — justIN has the submit→track→recover loop the direct path lacks; prodtools has deterministic job identity justIN lacks. Poor fits: mixing's structured aux inputs, byte-reproducible fcl. Adoption shape: justIN takes submit/track/recover, prodtools becomes the payload builder (samweb_wrapper seam = single-module MetaCat port).
+
+## [2026-07-07] update | justin-vs-prodtools: n→1 determinism section
+Pages updated: justin-vs-prodtools
+Note: verified from file_processing.md — multi-file jobs = jobscript loops justin-get-file (no grouping flag); partition non-deterministic on three grounds (live-queue allocation with replica locality, concurrent interleaving, failure-reset reallocating files to OTHER jobs ≤6 attempts). justIN = provenance after the fact; prodtools = prediction before the fact. Matters when merged files are citable artifacts (Cat datasets referenced by name downstream).

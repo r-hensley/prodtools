@@ -82,14 +82,41 @@ Consequences:
   predicting a campaign's exact output names before running, has no
   justIN equivalent.
 
+## n→1 (merge) under justIN — exists, but non-deterministic
+
+Multi-file jobs are a jobscript-side loop: *"the user's jobscript may
+execute justin-get-file multiple times and be allocated multiple input
+files"* (file_processing.md, fetched 2026-07-07). No documented per-job
+file limit or grouping flag; group size is jobscript discipline.
+
+The file→job **partition is not deterministic**, on three grounds:
+1. allocation is a live queue — files go to whichever job asks next,
+   with the *"suggested PFN and RSE"* chosen by replica locality (so
+   grouping depends on where jobs landed and when they started);
+2. concurrent jobs of a stage interleave their allocations;
+3. the retry machinery reshuffles by design — on failure *"all of the
+   input files allocated to this job are reset to unallocated"* (≤6
+   attempts) and are picked up by *other* jobs. One transient failure
+   re-partitions files across merge outputs.
+
+Deterministic: the processed *set* (MQL result, if the dataset is
+frozen) and per-output parentage (MetaCat sidecar). So justIN offers
+**provenance after the fact** where prodtools offers **prediction
+before the fact** (partition = sorted frozen list ÷ merge factor,
+output sequencer = first input of slice — see
+[[predictive-naming-proposal]] n→1 section). Physics-harmless for MC
+concatenation; a different regime when the merged file is a citable
+artifact (Cat datasets referenced by name in downstream configs,
+recovery by expected-vs-produced name comparison).
+
 ## Poor fits
 
 - **Mixing**: a Mu2e mix job consumes a structured set (~90 aux inputs
   across 4 pileup catalogs with deterministic MaxEventsToSkip slices
-  per index). One-file-at-a-time draining doesn't express this;
-  justIN favors file-parallel stages (reco/ntuple 1:1). A mixing stage
-  under justIN would still need a prodtools-like payload that carries
-  the aux-input structure.
+  per index). One-file-at-a-time draining doesn't express this — and
+  per the n→1 section above, even plain merges get non-deterministic
+  groupings. A mixing stage under justIN would still need a
+  prodtools-like payload that carries the aux-input structure.
 - **Byte-stability guarantees**: prodtools' worker fcl is verified
   byte-identical across refactors; justIN jobscripts have no analogous
   contract.

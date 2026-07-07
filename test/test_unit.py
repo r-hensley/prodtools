@@ -3447,6 +3447,80 @@ class TestMu2ejobsubProtocol(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 33. normalize_input_data — single home of the input_data shape grammar
+# ---------------------------------------------------------------------------
+
+class TestNormalizeInputData(unittest.TestCase):
+
+    def _one(self, input_data):
+        from utils.config_utils import normalize_input_data
+        specs = normalize_input_data(input_data)
+        self.assertEqual(len(specs), 1)
+        return specs[0]
+
+    def test_plain_merge_factor(self):
+        s = self._one({"dts.mu2e.NoPrimary.Run1Ban.art": 10})
+        self.assertEqual((s.source, s.per_job, s.random, s.max_nfiles),
+                         ("dts.mu2e.NoPrimary.Run1Ban.art", 10, False, None))
+
+    def test_count_random(self):
+        s = self._one({"dts.mu2e.NeutralsFlash.MDC2025ac.art":
+                       {"count": 5000, "random": True}})
+        self.assertEqual((s.per_job, s.random), (5000, True))
+
+    def test_merge_factor_with_max_nfiles(self):
+        s = self._one({"dts.mu2e.CosmicCRYAll.MDC2025ap.art":
+                       {"merge_factor": 10, "max_nfiles": 10000}})
+        self.assertEqual((s.per_job, s.max_nfiles), (10, 10000))
+
+    def test_count_wins_over_merge_factor(self):
+        s = self._one({"a.b.c.d.art": {"count": 3, "merge_factor": 7}})
+        self.assertEqual(s.per_job, 3)
+
+    def test_split_and_chunk_have_no_per_job(self):
+        s = self._one({"/cvmfs/x/PBI.txt": {"chunk_lines": 1000}})
+        self.assertEqual((s.per_job, s.chunk_lines), (None, 1000))
+        s = self._one({"/tmp/PBI.txt": {"split_lines": 500}})
+        self.assertEqual((s.per_job, s.split_lines), (None, 500))
+
+    def test_non_dict_raises(self):
+        from utils.config_utils import normalize_input_data
+        with self.assertRaises(ValueError):
+            normalize_input_data("dts.mu2e.X.C.art")
+        with self.assertRaises(ValueError):
+            normalize_input_data(None)
+
+    def test_unknown_spec_key_raises(self):
+        """Typos like 'marge_factor' must fail loud, not be silently ignored."""
+        from utils.config_utils import normalize_input_data
+        with self.assertRaises(ValueError):
+            normalize_input_data({"a.b.c.d.art": {"marge_factor": 2}})
+
+    def test_bad_max_nfiles_raises(self):
+        from utils.config_utils import normalize_input_data
+        for bad in (0, -5, "10"):
+            with self.assertRaises(ValueError):
+                normalize_input_data({"a.b.c.d.art": {"count": 1, "max_nfiles": bad}})
+
+    def test_order_preserved_multi_dataset(self):
+        from utils.config_utils import normalize_input_data
+        specs = normalize_input_data({"a.b.first.d.art": 1, "a.b.second.d.art": 2})
+        self.assertEqual([s.source for s in specs],
+                         ["a.b.first.d.art", "a.b.second.d.art"])
+
+    def test_consumers_share_the_grammar(self):
+        """calculate_merge_factor reads the normalized spec (split_lines→1,
+        missing merge info fails with the historical message)."""
+        from utils.prod_utils import calculate_merge_factor
+        self.assertEqual(calculate_merge_factor(
+            {"input_data": {"a.b.c.d.art": {"count": 4}}}), 4)
+        self.assertEqual(calculate_merge_factor(
+            {"input_data": {"/tmp/f.txt": {"split_lines": 100}}}), 1)
+        with self.assertRaises(ValueError):
+            calculate_merge_factor({"input_data": {"a.b.c.d.art": {"random": True}}})
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 

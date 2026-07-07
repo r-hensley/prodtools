@@ -7,8 +7,63 @@ including description extraction and auto-generation from input data.
 """
 
 import copy
+from typing import List, NamedTuple, Optional
 
 from utils.job_common import Mu2eName
+
+
+class InputSpec(NamedTuple):
+    """One normalized input_data entry. `per_job` is None only for dict
+    specs carrying neither count nor merge_factor (split/chunk shapes, or
+    malformed merge specs — the consumer decides which error applies)."""
+    source: str
+    per_job: Optional[int]
+    random: bool
+    max_nfiles: Optional[int]
+    split_lines: Optional[int]
+    chunk_lines: Optional[int]
+
+
+_INPUT_SPEC_KEYS = {'count', 'merge_factor', 'random', 'max_nfiles',
+                    'split_lines', 'chunk_lines'}
+
+
+def normalize_input_data(input_data) -> List[InputSpec]:
+    """Parse the `input_data` config field into InputSpec entries — the
+    single home of the field's shape grammar. Accepted shapes:
+
+        {source: N}                                  merge factor N per job
+        {source: {"count"|"merge_factor": N,
+                  "random": bool, "max_nfiles": M}}  SAM selection spec
+        {source: {"split_lines": N}}                 pre-split local text file
+        {source: {"chunk_lines": N}}                 chunk-on-grid (tbs.chunk_mode)
+
+    Fails loud on non-dict input_data, unknown spec keys, and non-positive
+    max_nfiles. Entry order is preserved (consumers key off the first)."""
+    if not isinstance(input_data, dict):
+        raise ValueError(f"input_data must be a dict, got {type(input_data)}")
+    specs = []
+    for source, value in input_data.items():
+        if isinstance(value, dict):
+            unknown = set(value) - _INPUT_SPEC_KEYS
+            if unknown:
+                raise ValueError(
+                    f"input_data spec for {source}: unknown key(s) {sorted(unknown)} "
+                    f"(known: {sorted(_INPUT_SPEC_KEYS)})")
+            max_nfiles = value.get('max_nfiles')
+            if max_nfiles is not None and (not isinstance(max_nfiles, int) or max_nfiles <= 0):
+                raise ValueError(
+                    f"input_data spec for {source}: max_nfiles must be a positive int, got {max_nfiles!r}")
+            per_job = value.get('count') or value.get('merge_factor')
+            specs.append(InputSpec(source,
+                                   int(per_job) if per_job is not None else None,
+                                   bool(value.get('random')),
+                                   max_nfiles,
+                                   value.get('split_lines'),
+                                   value.get('chunk_lines')))
+        else:
+            specs.append(InputSpec(source, int(value), False, None, None, None))
+    return specs
 
 
 def _get_first_if_list(value):
@@ -39,8 +94,8 @@ def prepare_fields_for_job(config, job_type='standard'):
         raise ValueError("input_data is required to auto-generate desc")
     
     if isinstance(input_data, dict):
-        # New format: dict with dataset names as keys
-        dataset_name = list(input_data.keys())[0]
+        # Dict form: validate the whole shape, take the first source
+        dataset_name = normalize_input_data(input_data)[0].source
     else:
         # Old format: string dataset name
         dataset_name = input_data

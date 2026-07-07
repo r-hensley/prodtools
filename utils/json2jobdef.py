@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 from utils.prod_utils import *
 from utils.mixing_utils import *
-from utils.config_utils import get_tarball_desc, prepare_fields_for_job
+from utils.config_utils import get_tarball_desc, prepare_fields_for_job, normalize_input_data
 from utils.job_common import Mu2eName, default_owner
 from utils.jobquery import Mu2eJobPars
 from utils.jobdef import create_jobdef, get_output_dataset_names
@@ -225,23 +225,14 @@ def _write_sam_inputs(config, input_data, exclude_files=None):
     event_count_positive = bool(config.get('_event_count_positive'))
 
     with open('inputs.txt', 'w') as out_f:
-        for dataset, merge_factor in input_data.items():
-            random_spec = {}
-            max_nfiles = None
-            if isinstance(merge_factor, dict):
-                random_spec = merge_factor
-                max_nfiles = random_spec.get('max_nfiles')
-                if max_nfiles is not None:
-                    if not isinstance(max_nfiles, int) or max_nfiles <= 0:
-                        raise ValueError(f"input_data spec for {dataset}: max_nfiles must be a positive int, got {max_nfiles!r}")
-                merge_factor = merge_factor.get('count') or merge_factor.get('merge_factor')
-                if merge_factor is None:
-                    raise ValueError(f"input_data spec for {dataset} must include 'count' or 'merge_factor' when using dict form")
+        for spec in normalize_input_data(input_data):
+            if spec.per_job is None:
+                raise ValueError(f"input_data spec for {spec.source} must include 'count' or 'merge_factor' when using dict form")
 
-            query = q_dataset(dataset, with_events=event_count_positive)
+            query = q_dataset(spec.source, with_events=event_count_positive)
 
-            if random_spec.get('random'):
-                per_job = int(merge_factor)
+            if spec.random:
+                per_job = spec.per_job
                 try:
                     njobs = int(config.get('njobs', 1))
                 except (TypeError, ValueError):
@@ -252,17 +243,17 @@ def _write_sam_inputs(config, input_data, exclude_files=None):
                     njobs = max(1, available // max(per_job, 1))
 
                 total_needed = per_job * max(njobs, 1)
-                if max_nfiles is not None:
-                    total_needed = min(total_needed, max_nfiles)
+                if spec.max_nfiles is not None:
+                    total_needed = min(total_needed, spec.max_nfiles)
                 seed_source = (
                     f"{config.get('owner','')}.{config.get('desc','')}.{config.get('dsconf','')}"
-                    f".{dataset}.{per_job}.{njobs}"
+                    f".{spec.source}.{per_job}.{njobs}"
                 )
                 _write_random_selection(out_f, query, total_needed, seed_source)
             else:
                 files = list_files(query)
-                if max_nfiles is not None:
-                    files = sorted(files)[:max_nfiles]
+                if spec.max_nfiles is not None:
+                    files = sorted(files)[:spec.max_nfiles]
                 for filepath in files:
                     if exclude_files and filepath in exclude_files:
                         continue
@@ -360,8 +351,8 @@ def determine_job_type(config):
     """
     input_data = config.get('input_data')
     if isinstance(input_data, dict):
-        first_value = next(iter(input_data.values()), None)
-        if isinstance(first_value, dict) and 'chunk_lines' in first_value:
+        specs = normalize_input_data(input_data)
+        if specs and specs[0].chunk_lines is not None:
             return 'chunk'
     if 'resampler_name' in config:
         return 'resampler'
@@ -593,10 +584,7 @@ def _build_job_args(config):
     job_type = determine_job_type(config)
 
     if job_type == 'resampler':
-        input_data = config['input_data']
-        if not isinstance(input_data, dict):
-            raise ValueError(f"input_data must be a dict, got {type(input_data)}")
-        first_dataset = list(input_data.keys())[0]
+        first_dataset = normalize_input_data(config['input_data'])[0].source
         try:
             config['_max_events_to_skip'] = max_events_to_skip(first_dataset)
         except Exception as e:

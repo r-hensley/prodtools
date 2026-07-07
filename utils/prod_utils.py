@@ -12,6 +12,7 @@ import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
+from .config_utils import normalize_input_data
 from .job_common import Mu2eName
 from .jobfcl import Mu2eJobFCL
 from .jobquery import Mu2eJobPars
@@ -181,25 +182,14 @@ def calculate_merge_factor(fields):
     The input_data should be a dict mapping dataset names to merge factors.
     Returns the merge factor from the first dataset in the dict.
     """
-    # input_data must be a dict, use the first dataset's merge factor
-    input_data = fields.get('input_data')
-    if not isinstance(input_data, dict):
-        raise ValueError(f"input_data must be a dict, got {type(input_data)}")
-    
-    value = list(input_data.values())[0]
-
-    if isinstance(value, dict):
-        if 'split_lines' in value:
-            # split_lines means "split a local text file into N-line chunks;
-            # each job consumes one chunk" — merge_factor is implicitly 1.
-            return 1
-        if 'count' in value:
-            return int(value['count'])
-        if 'merge_factor' in value:
-            return int(value['merge_factor'])
+    spec = normalize_input_data(fields.get('input_data'))[0]
+    if spec.split_lines is not None:
+        # split_lines means "split a local text file into N-line chunks;
+        # each job consumes one chunk" — merge_factor is implicitly 1.
+        return 1
+    if spec.per_job is None:
         raise ValueError("input_data dict spec must include 'count', 'merge_factor', or 'split_lines'")
-
-    return int(value)
+    return spec.per_job
 
 # Removed duplicate find_json_entry; use json2jobdef.load_json + json2jobdef.find_json_entry
 

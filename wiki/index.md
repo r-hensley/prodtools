@@ -31,6 +31,7 @@
 - [[input-data-chunk-mode]] — `chunk_lines` input_data shape; on-the-fly chunking at grid time via `tbs.chunk_mode` + runmu2e sed slice. Best of split_lines and dir: without the trade-offs _(2026-04-22)_
 - [[input-data-max-nfiles]] — `max_nfiles` cap inside nested-dict value form of input_data; deterministic sorted prefix slice (or bound on random sample); reuses the `{"count": N, "random": bool}` precedent. Rule of thumb: new input_data options go in the value dict, not as sibling keys _(2026-05-27)_
 - [[metacat-reference]] — samweb→metacat CLI bridge, MQL patterns, Python API snippets, read-only MCP install (from `Mu2e/aitools`) _(2026-04-24)_
+- [[justin-vs-prodtools]] — DUNE justIN workflow system mapped onto prodtools concepts: JIT file allocation vs frozen cnf lists, file-state auto-recovery vs mkrecovery, adoption shape if Mu2e follows the MetaCat/Rucio path _(2026-07-07)_
 - [[poms-reference]] — POMS data model (Campaign/Stage/Submission), dispatch lifecycle, Mu2e conventions (`i<stem>` naming via mkidxdef, dropbox path, decoupling possibility), `poms_client` library, common pitfalls _(2026-04-28)_
 - [[json2jobdef-staging-workflow]] — cross-stage map of `data/<campaign>/*.json`: entry shapes (scalar vs array), stage→fcl table, dsconf flow, DbService rule, standard add-entry → json2jobdef → push loop _(2026-05-05)_
 - [[prodtools-prd]] — descriptive PRD: what prodtools is today, personas (P1 prod ops, P2 physicist, P3 dev), goals/non-goals, capabilities, integration surface, gotcha categories, in-flight roadmap _(2026-05-05)_

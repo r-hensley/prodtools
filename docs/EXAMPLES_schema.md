@@ -60,7 +60,7 @@ When regenerating, read in this order:
 6. **Mixing Jobs** — JSON schema with `pileup_datasets` list-of-dict form,
    automatic mixer mapping. Do not use the legacy `*_dataset` / `*_count`
    split form.
-7. **Production Execution (`runmu2e`, `runfcl`)** — role of `fname`
+7. **Production Execution (`runmu2e`)** — role of `fname`
    env var, `etc.mu2e.index.NNN.NNNNNNN.txt` format, dry-run flag.
 8. **Sequential vs. pseudo-random auxiliary input selection** — the
    `tbs.sequential_aux` flag.
@@ -70,13 +70,13 @@ When regenerating, read in this order:
 11. **Additional Tools** — one subsection per script in `bin/` that has
     user-facing CLI: `pomsMonitor`, `pomsMonitorWeb`, `famtree`,
     `logparser`, `genFilterEff`, `datasetFileList`, `listNewDatasets`,
-    `mkrecovery`, `mkidxdef`, `jobquery`, `plot_logs`,
-    `submit_map`, `copy_to_stash`, `add_inputs_from_list.py`,
-    `list_no_child_datasets`, `plot_straw_hits.py`. Each subsection:
-    one-line purpose, 1–3 example invocations, key flags. Enumerate from
-    the current `bin/` directory — add any new script found there, remove
-    any that no longer exist. (`runjob.sh` is a worker bootstrap, not
-    user-facing — omit.)
+    `latestDatasets`, `mkrecovery`, `mkidxdef`, `jobquery`,
+    `submit_map`, `copy_to_stash`, `list_no_child_datasets`. Ops scripts
+    (`install_prodtools.sh`, `update_pomsmonitor_web`) get a one-line
+    mention. Each subsection: one-line purpose, 1–3 example invocations,
+    key flags. Enumerate from the current `bin/` directory — add any new
+    script found there, remove any that no longer exist. (`runjob.sh` is
+    a worker bootstrap, not user-facing — omit.)
 12. **Troubleshooting** — only entries that correspond to real error
     messages produced by current code. Remove stale ones.
 
@@ -100,7 +100,8 @@ reading the code:
   count, njobs)` — same inputs always produce the same file selection.
 - Parity tests validate byte-for-byte equivalence against the Perl
   `mu2ejobdef` reference implementation.
-- `pomsMonitor` database default path is `~/.prodtools/poms_data.db`.
+- `pomsMonitor` database default path is `poms_data.db` at the repo root
+  (`db_analyzer.get_default_db_path`).
 - `genFilterEff` output is Proditions-compatible (`TABLE
   SimEfficiencies2`).
 - `famtree` auto-excludes `etc*.txt` files from diagrams.

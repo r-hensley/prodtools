@@ -40,8 +40,8 @@ Offline environment for `fhicl-get`, so source the SimJob musing that the
 entry's `simjob_setup` names.
 
 Tools that read the POMS SQLite database (`pomsMonitor`,
-`listNewDatasets --completeness`, `pomsMonitorWeb`,
-`list_no_child_datasets`) additionally need SQLAlchemy:
+`listNewDatasets --completeness`, `pomsMonitorWeb`) additionally need
+SQLAlchemy:
 
 ```bash
 source /cvmfs/mu2e.opensciencegrid.org/bin/pyenv.sh ana
@@ -71,7 +71,6 @@ Analysis / diagnostic tools:
 - `latestDatasets` — latest dsconf per description; chain-emit configs
 - `pomsMonitor` / `pomsMonitorWeb` — campaign status from the POMS DB
 - `copy_to_stash` — copy a dataset into stash (CVMFS) or resilient dCache
-- `list_no_child_datasets` — complete outputs that nothing has consumed yet
 
 ## 3. Creating Job Definitions (`json2jobdef`, `jobdef`)
 
@@ -550,15 +549,6 @@ Flags: `--dataset`, `--dest {stash,resilient}`, `--source {disk,tape}`,
 resilient requires production (mu2epro) permissions for new dsconf
 directories.
 
-### `list_no_child_datasets`
-
-No arguments; prints outputs of complete jobs that no downstream job has
-consumed (needs SQLAlchemy):
-
-```bash
-list_no_child_datasets
-```
-
 ### `install_prodtools.sh` / `update_pomsmonitor_web`
 
 Operations scripts: `install_prodtools.sh` packages a versioned prodtools
@@ -585,4 +575,4 @@ DB and regenerates the static dashboard site.
 - `Package 'sqlalchemy' is required` — run
   `source /cvmfs/mu2e.opensciencegrid.org/bin/pyenv.sh ana` after
   `muse setup ops` (needed by pomsMonitor, listNewDatasets
-  --completeness, pomsMonitorWeb, list_no_child_datasets).
+  --completeness, pomsMonitorWeb).

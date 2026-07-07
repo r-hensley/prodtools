@@ -416,7 +416,6 @@ def build_jobdef(config, job_args, json_output=False):
 
     # Get the parfile name for both modes
     parfile_name = get_parfile_name(config)
-    fcl_file = get_fcl_name(config)
 
     # Build-time guard: ensure every outputs.*.fileName substitutes cleanly.
     # Catches missing fcl_overrides for outputs whose upstream defaults embed
@@ -446,7 +445,6 @@ def build_jobdef(config, job_args, json_output=False):
     else:
         # Human-readable output (create_jobdef already echoed the mu2ejobdef
         # equivalent when quiet=False)
-        print(f"Running Perl equivalent of: mu2ejobfcl --jobdef {parfile_name} --default-location tape --default-protocol root --index 0 > {fcl_file}")
         return None
 
 def append_jobdef(config, jobdefs_file=None):

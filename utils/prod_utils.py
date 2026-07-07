@@ -136,17 +136,6 @@ def write_fcl(jobdef, inloc='tape', proto='root', index=0, target=None):
     jobdef_name = Path(jobdef).name  # Get just the filename, not the full path
     fcl = str(Mu2eName.parse(jobdef_name).with_sequencer(str(index)).with_extension('fcl'))
     
-    # Print Perl equivalent command
-    perl_cmd = f"mu2ejobfcl --jobdef {jobdef} --default-location {inloc} --default-protocol {proto}"
-    if target:
-        perl_cmd += f" --target {target}"
-    else:
-        perl_cmd += f" --index {index}"
-    perl_cmd += f" > {fcl}"
-    print(f"Running Perl equivalent of:")
-    print(f"{perl_cmd}")
-    
-    # Use Python mu2ejobfcl implementation
     job_fcl = Mu2eJobFCL(jobdef, inloc=inloc, proto=proto)
 
     if target:

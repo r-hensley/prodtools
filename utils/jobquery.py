@@ -177,31 +177,6 @@ def main():
         print(f"Error: File not found: {args.parfile}")
         sys.exit(1)
     
-    # Print Perl equivalent command
-    perl_cmd = "mu2ejobquery"
-    if args.jobname:
-        perl_cmd += " --jobname"
-    elif args.njobs:
-        perl_cmd += " --njobs"
-    elif args.input_datasets:
-        perl_cmd += " --input-datasets"
-    elif args.input_files:
-        perl_cmd += " --input-files"
-    elif args.output_datasets:
-        perl_cmd += " --output-datasets"
-    elif args.output_files:
-        perl_cmd += f" --output-files {args.output_files}"
-    elif args.codesize:
-        perl_cmd += " --codesize"
-    elif args.extract_code:
-        perl_cmd += " --extract-code"
-    elif args.setup:
-        perl_cmd += " --setup"
-    perl_cmd += f" {args.parfile}"
-    
-    print(f"Running Perl equivalent of:")
-    print(f"{perl_cmd}")
-    
     try:
         jp = Mu2eJobPars(args.parfile)
         

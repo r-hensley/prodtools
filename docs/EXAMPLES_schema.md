@@ -71,7 +71,7 @@ When regenerating, read in this order:
     user-facing CLI: `pomsMonitor`, `pomsMonitorWeb`, `famtree`,
     `logparser`, `genFilterEff`, `datasetFileList`, `listNewDatasets`,
     `latestDatasets`, `mkrecovery`, `mkidxdef`, `jobquery`,
-    `submit_map`, `copy_to_stash`, `list_no_child_datasets`. Ops scripts
+    `submit_map`, `copy_to_stash`. Ops scripts
     (`install_prodtools.sh`, `update_pomsmonitor_web`) get a one-line
     mention. Each subsection: one-line purpose, 1–3 example invocations,
     key flags. Enumerate from the current `bin/` directory — add any new

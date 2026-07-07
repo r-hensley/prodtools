@@ -205,18 +205,28 @@ def calculate_merge_factor(fields):
 
 # Removed duplicate find_json_entry; use json2jobdef.load_json + json2jobdef.find_json_entry
 
-def write_fcl_template(base, overrides):
+def write_fcl_template(base, overrides, pre_lines=(), post_lines=()):
     """
-    Write FCL template file with just an include directive and overrides.
-    
+    Write template.fcl — the single writer for every jobdef stage.
+
+    Layout (FHiCL last-wins, so position is semantics):
+        #include base / pre_lines / overrides / post_lines
+
     Args:
         base: Base FCL file to include
         overrides: Dictionary of FCL overrides
+        pre_lines: raw FCL lines the config's overrides may still beat
+            (mixing pbeam include + per-mixer MaxEventsToSkip)
+        post_lines: raw FCL lines that beat the overrides
+            (resampler MaxEventsToSkip, computed from SAM)
     """
     with open('template.fcl', 'w') as f:
         # Write just the include directive for the base FCL
         f.write(f'#include "{base}"\n')
-        
+
+        for line in pre_lines:
+            f.write(line + '\n')
+
         # Add overrides
         for key, val in overrides.items():
             if key == '#include':
@@ -225,8 +235,12 @@ def write_fcl_template(base, overrides):
                     f.write(f'#include "{inc}"\n')
             else:
                 # Use json.dumps for all values to ensure proper FCL formatting
-                # (strings get quotes, lists get proper syntax with double quotes)
+                # (strings get quotes, lists get proper syntax with double
+                # quotes, bools become lowercase true/false as FHiCL requires)
                 f.write(f'{key}: {json.dumps(val)}\n')
+
+        for line in post_lines:
+            f.write(line + '\n')
 
 def replace_file_extensions(input_str, first_field, last_field):
     """Replace the tier and extension fields of a Mu2e dot-name."""

@@ -3449,6 +3449,43 @@ class TestResolveNjobs(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 32. mu2ejobsub backend protocol selection (submit.py → jobsub_argv table)
+# ---------------------------------------------------------------------------
+
+class TestMu2ejobsubProtocol(unittest.TestCase):
+    """The mu2ejobsub backend must take its --default-protocol from the
+    single inloc→protocol table in jobsub_argv (submit.py used to carry a
+    divergent copy that silently lacked `resilient`)."""
+
+    def _argv(self, inloc):
+        from types import SimpleNamespace
+        from utils.submit import build_mu2ejobsub_argv
+        entry = {'tarball': 'cnf.mu2e.Desc.MDC2025af.0.tar', 'njobs': 5,
+                 'inloc': inloc, 'outputs': []}
+        opts = SimpleNamespace(dry_run=False, verbose=False, wfproject=None,
+                               role=None, disk=None, memory=None,
+                               expected_lifetime=None)
+        return build_mu2ejobsub_argv(entry, '/tmp/cnf.tar', opts)
+
+    def _protocol(self, argv):
+        return argv[argv.index('--default-protocol') + 1]
+
+    def test_resilient_maps_to_root(self):
+        self.assertEqual(self._protocol(self._argv('resilient')), 'root')
+
+    def test_tape_maps_to_ifdh(self):
+        self.assertEqual(self._protocol(self._argv('tape')), 'ifdh')
+
+    def test_dir_maps_to_ifdh(self):
+        self.assertEqual(self._protocol(self._argv('dir:/pnfs/mu2e/x')), 'ifdh')
+
+    def test_none_skips_location_and_protocol(self):
+        argv = self._argv('none')
+        self.assertNotIn('--default-location', argv)
+        self.assertNotIn('--default-protocol', argv)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 

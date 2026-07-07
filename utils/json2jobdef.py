@@ -381,13 +381,14 @@ def build_jobdef(config, job_args, json_output=False):
     job_type = determine_job_type(config)
 
     if job_type != 'mixing':
-        write_fcl_template(fcl_path, config.get('fcl_overrides', {}))
-    
-    # Add MaxEventsToSkip parameter for resampler jobs after template is written
-    if job_type == 'resampler':
-        with open('template.fcl', 'a') as f:
-            f.write(f"physics.filters.{config['resampler_name']}.mu2e.MaxEventsToSkip: {config['_max_events_to_skip']}\n")
-    
+        # Resampler MaxEventsToSkip goes after the overrides (last wins)
+        post_lines = []
+        if job_type == 'resampler':
+            post_lines.append(
+                f"physics.filters.{config['resampler_name']}.mu2e.MaxEventsToSkip: {config['_max_events_to_skip']}")
+        write_fcl_template(fcl_path, config.get('fcl_overrides', {}),
+                           post_lines=post_lines)
+
     # Build the Perl commands that would be equivalent (always build for potential display)
     cmd_parts = [
         'mu2ejobdef',

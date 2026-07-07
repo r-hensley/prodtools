@@ -5,7 +5,6 @@ Mixing utilities for Mu2e production scripts.
 
 import copy
 import itertools
-import json
 from .prod_utils import *
 from .samweb_wrapper import files_in_dataset
 from .config_utils import _get_first_if_list, prepare_fields_for_job
@@ -79,73 +78,55 @@ def build_pileup_args(config):
         List of command-line arguments for mu2ejobdef
     """
     args = []
-    
-    # Always create template.fcl fresh for mixing jobs
-    with open('template.fcl', 'w') as f:
-        # Write base include directive
-        f.write(f'#include "{config["fcl"]}"\n')
-        
-        # Add pbeam-specific FCL include right after base FCL (BEFORE overrides)
-        # This allows fcl_overrides to actually override the pbeam settings
-        pbeam = _get_first_if_list(config.get('pbeam'))
-        if pbeam and pbeam in MIXING_FCL_INCLUDES:
-            f.write(f'#include "{MIXING_FCL_INCLUDES[pbeam]}"\n')
-        
-        # Get pileup datasets dict (extract from list if needed)
-        pileup_datasets = _get_first_if_list(config.get('pileup_datasets', [{}]))
-        
-        if not isinstance(pileup_datasets, dict):
-            raise ValueError(f"pileup_datasets must be a list containing a dict, got {type(config.get('pileup_datasets'))}")
-        
-        if not pileup_datasets:
-            raise ValueError("No mixing component datasets found. Expected pileup_datasets field.")
-        
-        # Group datasets by mixer type
-        mixer_datasets = {}
-        for dataset, merge_factor in pileup_datasets.items():
-            mixer_type = _map_dataset_to_mixer(dataset)
-            if mixer_type not in mixer_datasets:
-                mixer_datasets[mixer_type] = {}
-            mixer_datasets[mixer_type][dataset] = merge_factor
-        
-        # Process each mixer type
-        for mixer_type, datasets in mixer_datasets.items():
-            mixer = PILEUP_MIXERS.get(mixer_type)
-            if not mixer:
-                continue
-            
-            pileup_list = f"{mixer_type}Cat.txt"
-            
-            # Create pileup catalog for this mixer type
-            _create_pileup_catalog(datasets, pileup_list)
-            # Use the first dataset for MaxEventsToSkip calculation
-            first_dataset = list(datasets.keys())[0]
-            nfiles, nevts = get_def_counts(first_dataset)
-            skip = nevts // nfiles if nfiles > 0 else 0
-            print(f"physics.filters.{mixer}.mu2e.MaxEventsToSkip: {skip}", file=f)
-            
-            # Use the merge factor from the first dataset as the count
-            cnt = list(datasets.values())[0]
-            # Use the JSON count parameter - mu2ejobdef will select the first cnt files from the full list
-            args += ['--auxinput', f"{cnt}:physics.filters.{mixer}.fileNames:{pileup_list}"]
-        
-        # Add FCL overrides AFTER pbeam include so they can override pbeam settings
-        fcl_overrides = _get_first_if_list(config.get('fcl_overrides', {}))
-        
-        if fcl_overrides:
-            for key, val in fcl_overrides.items():
-                if key == '#include':
-                    includes = val if isinstance(val, list) else [val]
-                    for inc in includes:
-                        f.write(f'#include "{inc}"\n')
-                else:
-                    # json.dumps for proper FCL formatting — matches
-                    # write_fcl_template's (correct) approach. The manual
-                    # str()-based branch this replaced rendered Python bools
-                    # as "False"/"True" (invalid FHiCL; needs lowercase),
-                    # a live bug for any mixing-stage boolean override.
-                    f.write(f'{key}: {json.dumps(val)}\n')
+    pre_lines = []
 
+    # pbeam-specific FCL include goes right after the base FCL (BEFORE
+    # overrides) so fcl_overrides can actually override the pbeam settings
+    pbeam = _get_first_if_list(config.get('pbeam'))
+    if pbeam and pbeam in MIXING_FCL_INCLUDES:
+        pre_lines.append(f'#include "{MIXING_FCL_INCLUDES[pbeam]}"')
+
+    # Get pileup datasets dict (extract from list if needed)
+    pileup_datasets = _get_first_if_list(config.get('pileup_datasets', [{}]))
+
+    if not isinstance(pileup_datasets, dict):
+        raise ValueError(f"pileup_datasets must be a list containing a dict, got {type(config.get('pileup_datasets'))}")
+
+    if not pileup_datasets:
+        raise ValueError("No mixing component datasets found. Expected pileup_datasets field.")
+
+    # Group datasets by mixer type
+    mixer_datasets = {}
+    for dataset, merge_factor in pileup_datasets.items():
+        mixer_type = _map_dataset_to_mixer(dataset)
+        if mixer_type not in mixer_datasets:
+            mixer_datasets[mixer_type] = {}
+        mixer_datasets[mixer_type][dataset] = merge_factor
+
+    # Process each mixer type
+    for mixer_type, datasets in mixer_datasets.items():
+        mixer = PILEUP_MIXERS.get(mixer_type)
+        if not mixer:
+            continue
+
+        pileup_list = f"{mixer_type}Cat.txt"
+
+        # Create pileup catalog for this mixer type
+        _create_pileup_catalog(datasets, pileup_list)
+        # Use the first dataset for MaxEventsToSkip calculation
+        first_dataset = list(datasets.keys())[0]
+        nfiles, nevts = get_def_counts(first_dataset)
+        skip = nevts // nfiles if nfiles > 0 else 0
+        pre_lines.append(f"physics.filters.{mixer}.mu2e.MaxEventsToSkip: {skip}")
+
+        # Use the merge factor from the first dataset as the count
+        cnt = list(datasets.values())[0]
+        # Use the JSON count parameter - mu2ejobdef will select the first cnt files from the full list
+        args += ['--auxinput', f"{cnt}:physics.filters.{mixer}.fileNames:{pileup_list}"]
+
+    write_fcl_template(config['fcl'],
+                       _get_first_if_list(config.get('fcl_overrides', {})),
+                       pre_lines=pre_lines)
     return args
 
 def _job_type_for_config(job):

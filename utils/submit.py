@@ -39,13 +39,6 @@ DEFAULT_RUNJOB_SH = REPO_ROOT / 'bin' / 'runjob.sh'
 DEFAULT_PRODTOOLS_TAR = Path('/tmp') / f'prodtools-{getpass.getuser()}.tar'
 
 
-INLOC_TO_PROTOCOL = {
-    'tape': 'ifdh',
-    'disk': 'ifdh',
-    'scratch': 'ifdh',
-}
-
-
 def build_mu2ejobsub_argv(entry, tarball_path, opts):
     """Map a POMS-map entry + options to mu2ejobsub CLI argv.
 
@@ -67,13 +60,12 @@ def build_mu2ejobsub_argv(entry, tarball_path, opts):
     if 'njobs' in entry:
         argv.append('--all')
 
-    # Input location and protocol
+    # Input location and protocol (single-homed in jobsub_argv — the same
+    # table drives both backends, so resilient gets `root` here too)
     inloc = inloc_of(entry)
     if inloc != 'none':
         argv.extend(['--default-location', inloc])
-        protocol = INLOC_TO_PROTOCOL.get(inloc)
-        if protocol is None and inloc.startswith('dir:'):
-            protocol = 'ifdh'
+        protocol = _jobsub_argv.default_protocol_for_inloc(inloc)
         if protocol:
             argv.extend(['--default-protocol', protocol])
 

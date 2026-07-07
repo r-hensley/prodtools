@@ -5,13 +5,13 @@ import sys, os, json, argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.jobquery import Mu2eJobPars
 from utils.samweb_wrapper import (
-    SAMWebWrapper,
     create_definition,
     dataset_file_count,
     files_in_dataset,
     q_dataset_files_named,
 )
-from utils.job_common import Mu2eName, remove_storage_prefix
+from utils.job_common import Mu2eName
+from utils.file_resolver import sam_physical_path
 from utils.poms_entry import tarball_of, njobs_of
 
 def find_missing_indices(tarball_path, dataset, njobs):
@@ -56,12 +56,13 @@ def create_recovery_definition(defname, indices):
     print(f"Created SAM definition: {defname}")
     return True
 
-def locate_tarball(sam, tarball):
-    """Locate and return full path to tarball."""
-    locs = sam.locate_file_full(tarball)
-    if not locs:
+def locate_tarball(tarball):
+    """Locate and return full path to tarball, or None if SAM has no
+    usable location (matches the old swallow-and-skip semantics)."""
+    try:
+        return sam_physical_path(tarball)
+    except Exception:
         return None
-    return os.path.join(remove_storage_prefix(locs[0].get('full_path', '')), tarball)
 
 def extract_datasets_from_tarball(tarball_path, njobs):
     """Extract output dataset names from job definition tarball."""
@@ -98,7 +99,6 @@ def main():
             entries = json.load(f)
         
         json_basename = os.path.basename(args.input).replace('.json', '')
-        sam = SAMWebWrapper()
         all_missing_indices, cumulative = set(), 0
         
         print(f"Processing {len(entries)} entries from {args.input}\n{'='*60}\n")
@@ -111,7 +111,7 @@ def main():
             print(f'[{i+1}/{len(entries)}] {tarball}')
             
             # Locate tarball
-            tarball_path = locate_tarball(sam, tarball)
+            tarball_path = locate_tarball(tarball)
             if not tarball_path or not os.path.exists(tarball_path):
                 print(f'  ERROR: Could not locate tarball')
                 cumulative += njobs

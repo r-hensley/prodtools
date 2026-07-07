@@ -238,6 +238,38 @@ def remove_storage_prefix(path: str) -> str:
     return path
 
 
+def tbs_capacity(tbs, context=''):
+    """Max job count supported by a tbs dict's frozen input lists — the
+    single home of the ceil-div arithmetic, shared by the tarball reader
+    (Mu2eJobBase.njobs) and the writer (jobdef._resolve_njobs).
+
+    Returns None when tbs carries neither inputs nor samplinginput
+    (generator / generic jobdefs — capacity is not derivable from tbs).
+    """
+    where = f" in {context}" if context else ""
+
+    inputs = tbs.get('inputs')
+    if inputs:
+        for dataset, (merge, filelist) in inputs.items():
+            if not isinstance(merge, int) or merge <= 0:
+                raise ValueError(
+                    f"tbs_capacity: invalid merge factor {merge!r} for {dataset}{where}")
+            return (len(filelist) + merge - 1) // merge
+
+    samplinginput = tbs.get('samplinginput')
+    if samplinginput:
+        for dataset, (nreq, filelist) in samplinginput.items():
+            if nreq == 0:
+                # nreq 0 = "all files in one job" (job_sampling_inputs semantics)
+                return 1
+            if not isinstance(nreq, int) or nreq < 0:
+                raise ValueError(
+                    f"tbs_capacity: invalid nreq {nreq!r} for {dataset}{where}")
+            return (len(filelist) + nreq - 1) // nreq
+
+    return None
+
+
 class Mu2eJobBase:
     """Base class for Mu2e job handling classes.
 
@@ -536,8 +568,8 @@ class Mu2eJobBase:
         """Get the number of jobs in the set.
 
         Precedence: tbs.njobs (embedded at build time: the declared or
-        resolved campaign size) → derived from the frozen primary input
-        list → derived from samplinginput → 0.
+        resolved campaign size) → capacity derived from the frozen input
+        lists (tbs_capacity) → 0.
 
         0 means "open-ended": a legacy generator tarball built before
         tbs.njobs existed, or a generic tarball (1 job per input fname).
@@ -549,25 +581,7 @@ class Mu2eJobBase:
         if 'njobs' in tbs:
             return int(tbs['njobs'])
 
-        inputs = tbs.get('inputs')
-        if inputs:
-            for dataset, (merge, filelist) in inputs.items():
-                if not isinstance(merge, int) or merge <= 0:
-                    raise ValueError(
-                        f"njobs(): invalid merge factor {merge!r} for {dataset} in {self.jobdef}")
-                return (len(filelist) + merge - 1) // merge
-
-        samplinginput = tbs.get('samplinginput')
-        if samplinginput:
-            for dataset, (nreq, filelist) in samplinginput.items():
-                if nreq == 0:
-                    # nreq 0 = "all files in one job" (job_sampling_inputs semantics)
-                    return 1
-                if not isinstance(nreq, int) or nreq < 0:
-                    raise ValueError(
-                        f"njobs(): invalid nreq {nreq!r} for {dataset} in {self.jobdef}")
-                return (len(filelist) + nreq - 1) // nreq
-
-        return 0
+        capacity = tbs_capacity(tbs, context=self.jobdef)
+        return 0 if capacity is None else capacity
 
 

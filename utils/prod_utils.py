@@ -20,6 +20,7 @@ from .samweb_wrapper import (
     delete_definition,
     describe_definition,
     locate_file_full,
+    locate_files_strict,
     dataset_summary,
     definition_file_count,
     q_dataset_below_sequencer,
@@ -112,12 +113,13 @@ def _require_fields(entry, required_fields, mode_name):
             sys.exit(1)
 
 
-def _extract_simjob_setup(tarball):
+def _extract_simjob_setup(tarball, jp=None):
     """Read the SimJob setup-script path from a cnf.*.tar's jobpars.json
-    via Mu2eJobPars. Re-raises with a clear context line on the realistic
+    via Mu2eJobPars (pass a pre-built instance to avoid re-parsing the
+    tarball). Re-raises with a clear context line on the realistic
     failure modes (bad tarball, missing key, missing file)."""
     try:
-        jp = Mu2eJobPars(tarball)
+        jp = jp if jp is not None else Mu2eJobPars(tarball)
         setup = jp.setup()
         print(f"Job setup script: {setup}")
         return setup
@@ -130,9 +132,9 @@ def write_fcl(jobdef, inloc='tape', proto='root', index=0, target=None):
     """
     Generate and write an FCL file using mu2ejobfcl.
     """
-    # Extract fcl filename from jobdef and write to current directory
+    # cnf.<owner>.<desc>.<dsconf>.<seq>.tar -> cnf.<owner>.<desc>.<dsconf>.<index>.fcl
     jobdef_name = Path(jobdef).name  # Get just the filename, not the full path
-    fcl = re.sub(r'\.\d+\.tar$', f'.{index}.fcl', jobdef_name)  # cnf.mu2e.RPCInternalPhysical.MDC2020az.{index}.fcl
+    fcl = str(Mu2eName.parse(jobdef_name).with_sequencer(str(index)).with_extension('fcl'))
     
     # Print Perl equivalent command
     perl_cmd = f"mu2ejobfcl --jobdef {jobdef} --default-location {inloc} --default-protocol {proto}"
@@ -176,6 +178,13 @@ def get_def_counts(dataset, include_empty=False):
     if nfiles == 0:
         sys.exit(f"No files found in dataset {dataset}")
     return nfiles, nevts
+
+def max_events_to_skip(dataset):
+    """MaxEventsToSkip for a resampler/mixer reading `dataset`: mean events
+    per file (floor), so per-job skips stay within one file's budget.
+    Single home of the derivation (mixing pre_lines + resampler post_lines)."""
+    nfiles, nevts = get_def_counts(dataset)
+    return nevts // nfiles if nfiles > 0 else 0
 
 def calculate_merge_factor(fields):
     """Calculate merge factor from input_data dict.
@@ -557,10 +566,9 @@ def process_jobdef(jobdesc, fname, args):
     # in cwd. Every job's FCL references local_filename (set via
     # fcl_overrides at jobdef-creation time), so mu2e reads whatever that
     # file contains when it opens.
-    jp_for_chunk = Mu2eJobPars(tarball)
-    tbs = jp_for_chunk.json_data.get('tbs', {}) if isinstance(jp_for_chunk.json_data, dict) else {}
-    chunk_mode = tbs.get('chunk_mode') if isinstance(tbs, dict) else None
-    if isinstance(chunk_mode, dict):
+    jp = Mu2eJobPars(tarball)
+    chunk_mode = jp.json_data.get('tbs', {}).get('chunk_mode')
+    if chunk_mode:
         src = chunk_mode['source']
         lines_per_chunk = int(chunk_mode['lines'])
         local_name = chunk_mode['local_filename']
@@ -574,8 +582,7 @@ def process_jobdef(jobdesc, fname, args):
         run(cmd, shell=True)
 
     # List input files
-    job_io = Mu2eJobPars(tarball)
-    inputs = job_io.job_inputs(job_index_num)
+    inputs = jp.job_inputs(job_index_num)
     # Flatten the dictionary values into a single list
     all_files = []
     for file_list in inputs.values():
@@ -588,10 +595,21 @@ def process_jobdef(jobdesc, fname, args):
         print(f"Copying input files locally from {inloc}: {infiles}")
         fcl = write_fcl(tarball, f"dir:{os.getcwd()}/indir", 'file', job_index_num)
         
-        # Copy each file individually, detecting actual location from SAMWeb
+        # Copy each file individually, detecting actual location from SAMWeb.
+        # Batch-locate everything in one SAM round-trip first (a mixing job
+        # has ~90 inputs); per-file fallback keeps the error semantics.
         print("Starting to copy input files locally")
+        located = {}
+        try:
+            result = locate_files_strict(all_files)
+            if isinstance(result, dict):
+                located = result
+        except Exception:
+            pass
         for file in all_files:
-            locations = locate_file_full(file)
+            locations = located.get(file)
+            if not isinstance(locations, list) or not locations:
+                locations = locate_file_full(file)
             if not locations or 'location_type' not in locations[0]:
                 raise RuntimeError(f"Could not detect location for file: {file}")
             file_inloc = locations[0]['location_type']
@@ -611,7 +629,7 @@ def process_jobdef(jobdesc, fname, args):
         print(f"FCL: {fcl}")
     
     # Extract setup script from tarball
-    simjob_setup = _extract_simjob_setup(tarball)
+    simjob_setup = _extract_simjob_setup(tarball, jp=jp)
 
     outputs = jobdesc_entry['outputs']
     return fcl, simjob_setup, infiles, outputs, inloc
@@ -756,14 +774,14 @@ def process_g4bl_jobdef(jobdesc_entry, fname, args):
     return jobdesc_entry['outputs'], histo_file, log_file, (rc == 0)
 
 
-def push_output(output_specs, output_file="output.txt", parents_file="parents_list.txt", simjob_setup=None):
+def push_output(output_specs, output_file="output.txt", simjob_setup=None):
     """
     Generic function to push output files.
-    
+
     Args:
-        output_specs: List of tuples (location, filename, parents_file)
+        output_specs: List of tuples (location, filename, parents) — parents
+            is the per-file third column ('parents_list.txt' or 'none')
         output_file: Name of the output specification file
-        parents_file: Name of the parents list file (optional)
         simjob_setup: Path to SimJob setup script for art environment
     
     Returns:
@@ -827,7 +845,7 @@ def push_data(outputs, infiles, simjob_setup=None, track_parents=True):
             output_specs.append((location, filename, parents_field))
 
     # Use generic push function
-    return push_output(output_specs, "output.txt", parents_field, simjob_setup=simjob_setup)
+    return push_output(output_specs, "output.txt", simjob_setup=simjob_setup)
 
 def push_logs(fcl=None, simjob_setup=None, log_file=None, location="disk"):
     """Handle log file management and submission.
@@ -873,7 +891,7 @@ def push_logs(fcl=None, simjob_setup=None, log_file=None, location="disk"):
         # Art jobs use parents_list.txt (written by push_data earlier).
         parents = "none" if log_file is not None else "parents_list.txt"
         output_specs = [(location, logfile, parents)]
-        return push_output(output_specs, "log_output.txt", parents, simjob_setup=simjob_setup)
+        return push_output(output_specs, "log_output.txt", simjob_setup=simjob_setup)
     else:
         print(f"Warning: Log file {logfile} not found, skipping log push")
         return 0

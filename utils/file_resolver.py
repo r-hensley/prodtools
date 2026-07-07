@@ -147,6 +147,50 @@ def xroot_read_url(pnfs_path: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# SAM location records → physical paths
+# ---------------------------------------------------------------------------
+
+def path_from_sam_location(filename, location):
+    """Physical path from one SAM location record: full_path → strip the
+    storage prefix and any trailing '(pool@node)' suffix → append the
+    basename if the record path is a directory. Raises ValueError on an
+    empty or malformed record."""
+    if not isinstance(location, dict):
+        raise ValueError(f"malformed SAM location record for {filename}: {location!r}")
+    path = remove_storage_prefix(location.get('full_path', ''))
+    path = _LOCATION_SUFFIX_RE.sub('', path)
+    if not path:
+        raise ValueError(f"empty path in SAM location record for {filename}")
+    if not path.endswith(filename):
+        path = f"{path.rstrip('/')}/{filename}"
+    return path
+
+
+def sam_physical_path(filename, prefer_location=None):
+    """Readable physical path for `filename` from its SAM locations (one
+    locate call). Prefers records whose location_type matches
+    `prefer_location` when given; otherwise takes the first record.
+    Raises ValueError when SAM has no usable location.
+
+    Single home of the locate → full_path → cleanup grammar for scripted
+    consumers (stash copy, recovery, dashboards). The worker fcl path has
+    its own per-proto variant in FileResolver.url() — kept separate
+    because its output must stay byte-identical.
+    """
+    from .samweb_wrapper import locate_file_strict
+    locations = locate_file_strict(filename)
+    if not locations:
+        raise ValueError(f"no SAM locations for {filename}")
+    chosen = locations[0]
+    if prefer_location:
+        preferred = [loc for loc in locations
+                     if loc.get('location_type') == prefer_location]
+        if preferred:
+            chosen = preferred[0]
+    return path_from_sam_location(filename, chosen)
+
+
+# ---------------------------------------------------------------------------
 # Existence probes
 # ---------------------------------------------------------------------------
 

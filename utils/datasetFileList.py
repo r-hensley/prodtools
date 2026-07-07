@@ -12,12 +12,14 @@ from pathlib import Path
 
 # Handle both module and standalone imports
 try:
-    from .job_common import Mu2eName, remove_storage_prefix
+    from .job_common import Mu2eName
+    from .file_resolver import path_from_sam_location
     from .samweb_wrapper import get_samweb_wrapper
 except ImportError:
     # When running as standalone script
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from utils.job_common import Mu2eName, remove_storage_prefix
+    from utils.job_common import Mu2eName
+    from utils.file_resolver import path_from_sam_location
     from utils.samweb_wrapper import get_samweb_wrapper
 
 
@@ -149,33 +151,24 @@ def get_definition_files(definition_name: str) -> List[str]:
         List of full file paths
     """
     samweb = get_samweb_wrapper()
-    fns = samweb.list_definition_files(definition_name)
-    
-    file_paths = []
-    for f in sorted(fns):
-        try:
-            locations = samweb.locate_files([f])
-            
-            if f not in locations or not locations[f]:
-                continue
-            
-            for location_info in locations[f]:
-                if not isinstance(location_info, dict) or 'full_path' not in location_info:
-                    continue
-                
-                full_path = location_info['full_path']
+    fns = sorted(samweb.list_definition_files(definition_name))
 
-                # Remove storage system prefixes
-                full_path = remove_storage_prefix(full_path)
-                
-                if full_path.startswith('/'):
-                    final_path = os.path.join(full_path, f)
-                    file_paths.append(final_path)
-                    break  # Take first valid location
-                    
-        except Exception:
-            continue
-    
+    # One SAM round-trip for the whole definition (thousands of files for
+    # log datasets) instead of one locate per file.
+    try:
+        locations_map = samweb.locate_files(fns) if fns else {}
+    except Exception:
+        locations_map = {}
+
+    file_paths = []
+    for f in fns:
+        for location_info in locations_map.get(f) or []:
+            try:
+                file_paths.append(path_from_sam_location(f, location_info))
+                break  # Take first valid location
+            except ValueError:
+                continue
+
     return file_paths
 
 def main():

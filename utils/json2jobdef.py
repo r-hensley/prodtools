@@ -7,7 +7,6 @@ Usage:
   - Direct file: python3 mu2e_poms_util/json2jobdef.py --help
 """
 import os, sys
-import logging
 import random
 # Allow running this file directly: make package root importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -389,7 +388,9 @@ def build_jobdef(config, job_args, json_output=False):
         write_fcl_template(fcl_path, config.get('fcl_overrides', {}),
                            post_lines=post_lines)
 
-    # Build the Perl commands that would be equivalent (always build for potential display)
+    # Perl-equivalent command string. Kept even though create_jobdef echoes
+    # its own version: test/parity_test.py consumes this exact string via
+    # result['perl_commands'] to run the Perl mu2ejobdef comparison.
     cmd_parts = [
         'mu2ejobdef',
         '--setup', config['simjob_setup'],
@@ -409,11 +410,7 @@ def build_jobdef(config, job_args, json_output=False):
     # Add job_args and template
     cmd_parts.extend(job_args)
     cmd_parts.extend(['--embed', 'template.fcl'])
-    
-    # Always show the mu2ejobdef equivalent command when verbose logging is enabled
-    if logging.getLogger().level <= logging.DEBUG:
-        print(f"🐪 mu2ejobdef equivalent command: {' '.join(cmd_parts)}")
-    
+
     # Now create jobdef using the template.fcl
     create_jobdef(config, fcl_path='template.fcl', job_args=job_args, embed=True, quiet=json_output)
 
@@ -453,8 +450,8 @@ def build_jobdef(config, job_args, json_output=False):
         }
         return result
     else:
-        # Human-readable output (current behavior)
-        print(f"Python mu2ejobdef equivalent command: {' '.join(cmd_parts)}")
+        # Human-readable output (create_jobdef already echoed the mu2ejobdef
+        # equivalent when quiet=False)
         print(f"Running Perl equivalent of: mu2ejobfcl --jobdef {parfile_name} --default-location tape --default-protocol root --index 0 > {fcl_file}")
         return None
 
@@ -566,25 +563,17 @@ def main():
     # Load and expand the JSON configuration once
     expanded_configs = load_json(Path(args.json))
     
-    # If both desc and dsconf are specified, process single entry
-    if args.desc and args.dsconf and args.index is None:
-        config = find_json_entry(expanded_configs, args.desc, args.dsconf, None)
-        config['_event_count_positive'] = args.event_count_positive
-        process_single_entry(
-            config,
-            json_output=True,
-            pushout=args.pushout,
-            no_cleanup=args.no_cleanup,
-            jobdefs_list=args.jobdefs,
-            extend=args.extend,
-            ignore_empty=args.ignore_empty,
-        )
-    # If dsconf is specified but no desc and no index, process all entries for that dsconf
-    elif args.dsconf and args.desc is None and args.index is None:
+    # Bulk mode: dsconf only → every entry at that dsconf
+    if args.dsconf and args.desc is None and args.index is None:
         process_all_for_dsconf(expanded_configs, args.dsconf, args)
-    # If only index is specified, process single entry by index
-    elif args.index is not None and args.desc is None and args.dsconf is None:
-        config = find_json_entry(expanded_configs, None, None, args.index)
+    else:
+        # Scalar modes: --desc + --dsconf, or --index only
+        if args.desc and args.dsconf and args.index is None:
+            config = find_json_entry(expanded_configs, args.desc, args.dsconf, None)
+        elif args.index is not None and args.desc is None and args.dsconf is None:
+            config = find_json_entry(expanded_configs, None, None, args.index)
+        else:
+            sys.exit("Please specify either --desc AND --dsconf, --dsconf only, or --index only")
         config['_event_count_positive'] = args.event_count_positive
         process_single_entry(
             config,
@@ -595,9 +584,6 @@ def main():
             extend=args.extend,
             ignore_empty=args.ignore_empty,
         )
-    else:
-        # No filtering specified, show usage
-        sys.exit("Please specify either --desc AND --dsconf, --dsconf only, or --index only")
     
     # If --prod mode, create index definition after generation
     if args.prod:
@@ -620,8 +606,7 @@ def _build_job_args(config):
             raise ValueError(f"input_data must be a dict, got {type(input_data)}")
         first_dataset = list(input_data.keys())[0]
         try:
-            nfiles, nevts = get_def_counts(first_dataset)
-            config['_max_events_to_skip'] = nevts // nfiles
+            config['_max_events_to_skip'] = max_events_to_skip(first_dataset)
         except Exception as e:
             print(f"Warning: Could not calculate MaxEventsToSkip for {first_dataset}: {e}")
         merge_factor = calculate_merge_factor(config)
@@ -656,9 +641,7 @@ def _pushout_to_sam(parfile_name):
         return
 
     print(f"Pushing {parfile_name} to SAM...")
-    with open('outputs.txt', 'w') as f:
-        f.write(f"disk {parfile_name} none\n")
-    run('pushOutput outputs.txt', shell=True)
+    push_output([('disk', parfile_name, 'none')], 'outputs.txt')
 
 
 def _cleanup_temp_files():
@@ -698,22 +681,17 @@ def process_single_entry(config, json_output=True, pushout=False, no_cleanup=Tru
     if config.get('input_data'):
         _create_inputs_file(config, exclude_files=exclude_files)
 
-    # Check for empty inputs
-    if Path('inputs.txt').exists():
-        remaining = sum(1 for _ in open('inputs.txt'))
-        if remaining == 0:
-            if extend:
-                print(f"  Extend summary: {len(exclude_files)} excluded, 0 remaining input files")
-            if ignore_empty:
-                print(f"  Skipping {config.get('desc', 'unknown')}: no input files available")
-                return None
-            elif extend:
-                sys.exit("--extend: no new input files to process")
-
+    # Check for empty inputs (count once; one extend summary print)
+    remaining = sum(1 for _ in open('inputs.txt')) if Path('inputs.txt').exists() else 0
     if extend and exclude_files is not None:
-        remaining = sum(1 for _ in open('inputs.txt')) if Path('inputs.txt').exists() else 0
         print(f"  Extend summary: {len(exclude_files)} excluded, {remaining} remaining input files")
-    
+    if Path('inputs.txt').exists() and remaining == 0:
+        if ignore_empty:
+            print(f"  Skipping {config.get('desc', 'unknown')}: no input files available")
+            return None
+        elif extend:
+            sys.exit("--extend: no new input files to process")
+
     job_args = _build_job_args(config)
 
     # build_jobdef handles FCL template creation for non-mixing jobs

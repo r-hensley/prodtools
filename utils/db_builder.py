@@ -16,7 +16,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.poms_db import get_db_session, Job, JobOutput, DatasetInfo
 from utils.samweb_wrapper import (
-    locate_file,
     locate_file_full,
     list_definition_files,
     describe_definition,
@@ -27,6 +26,7 @@ from utils.samweb_wrapper import (
 )
 from utils.job_common import Mu2eName
 from utils.jobquery import Mu2eJobPars
+from utils.file_resolver import sam_physical_path
 from utils.logparser import process_dataset as parse_logs_for_dataset
 import re
 from datetime import datetime
@@ -36,16 +36,6 @@ from datetime import datetime
 _SKIP_TARBALLS = {
     "cnf.mu2e.ensembleMDS3a.MDC2025af.0.tar",
 }
-
-
-def _extract_file_path(location):
-    """Extract file path from SAM location result."""
-    if isinstance(location, dict):
-        file_path = location.get('full_path', '')
-        return file_path.split(':', 1)[1] if ':' in file_path else file_path
-    elif isinstance(location, str):
-        return location.split(':', 1)[1] if ':' in location else location
-    return None
 
 
 def _get_dataset_stats(dataset_name):
@@ -322,14 +312,15 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
             print(f"Skipping {job.tarball} (in _SKIP_TARBALLS — bad dCache replica)")
             continue
         try:
-            file_path = _extract_file_path(locate_file(job.tarball))
-            if not file_path:
+            try:
+                full_path = sam_physical_path(job.tarball)
+            except Exception:
                 continue
-            full_path = os.path.join(file_path, job.tarball)
             if not os.path.exists(full_path):
                 continue
 
-            outputs = Mu2eJobPars(full_path).job_outputs(0)
+            jp = Mu2eJobPars(full_path)
+            outputs = jp.job_outputs(0)
             if not outputs:
                 continue
 
@@ -337,7 +328,7 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
             # is encoded inside the cnf tarball. Pull it from there so the
             # static dashboard's lineage walker has parent edges.
             try:
-                inputs = Mu2eJobPars(full_path).input_datasets()
+                inputs = jp.input_datasets()
                 job.indef = ','.join(inputs) if inputs else None
             except Exception as e:
                 print(f"  Warning: input_datasets failed for {job.tarball}: {e}", file=sys.stderr)

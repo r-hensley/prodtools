@@ -32,8 +32,8 @@ from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.job_common import remove_storage_prefix
-from utils.samweb_wrapper import files_in_dataset, locate_file_full
+from utils.file_resolver import sam_physical_path
+from utils.samweb_wrapper import files_in_dataset
 from utils import file_resolver
 
 
@@ -123,18 +123,9 @@ def _copy_dataset(
         dest = dest_path_fn(filename)
         dest_dir = os.path.dirname(dest)
 
-        # Get source path from SAM, filtering by requested location type
+        # Get source path from SAM, preferring the requested location type
         try:
-            locations = locate_file_full(filename)
-            preferred = [loc for loc in locations if loc.get('location_type') == source_loc]
-            chosen = preferred[0] if preferred else (locations[0] if locations else None)
-            if not chosen:
-                raise ValueError("no locations returned")
-            src = remove_storage_prefix(chosen.get('full_path', ''))
-            if not src:
-                raise ValueError("empty path in location record")
-            if not src.endswith(filename):
-                src = f"{src.rstrip('/')}/{filename}"
+            src = sam_physical_path(filename, prefer_location=source_loc)
         except Exception as e:
             print(f"  SKIP {filename}: could not locate ({e})", file=sys.stderr)
             n_fail += 1

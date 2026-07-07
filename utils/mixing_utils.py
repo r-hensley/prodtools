@@ -115,8 +115,7 @@ def build_pileup_args(config):
         _create_pileup_catalog(datasets, pileup_list)
         # Use the first dataset for MaxEventsToSkip calculation
         first_dataset = list(datasets.keys())[0]
-        nfiles, nevts = get_def_counts(first_dataset)
-        skip = nevts // nfiles if nfiles > 0 else 0
+        skip = max_events_to_skip(first_dataset)
         pre_lines.append(f"physics.filters.{mixer}.mu2e.MaxEventsToSkip: {skip}")
 
         # Use the merge factor from the first dataset as the count

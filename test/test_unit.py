@@ -1319,7 +1319,7 @@ class TestStashUtils(unittest.TestCase):
         ]
 
         with patch('utils.stash_utils.files_in_dataset', return_value=mock_files), \
-             patch('utils.stash_utils.locate_file_full', return_value=mock_locations), \
+             patch('utils.samweb_wrapper.locate_file_strict', return_value=mock_locations), \
              patch('os.makedirs') as mock_mkdir, \
              patch('subprocess.run') as mock_run:
             n = stash_utils.copy_dataset_to_stash(
@@ -1346,7 +1346,7 @@ class TestStashUtils(unittest.TestCase):
         mock_run_result.returncode = 0
 
         with patch('utils.stash_utils.files_in_dataset', return_value=mock_files), \
-             patch('utils.stash_utils.locate_file_full', return_value=mock_locations), \
+             patch('utils.samweb_wrapper.locate_file_strict', return_value=mock_locations), \
              patch('os.makedirs'), \
              patch('subprocess.run', return_value=mock_run_result) as mock_run:
             n = stash_utils.copy_dataset_to_stash(
@@ -1373,7 +1373,7 @@ class TestStashUtils(unittest.TestCase):
         mock_run_result.returncode = 0
 
         with patch('utils.stash_utils.files_in_dataset', return_value=mock_files), \
-             patch('utils.stash_utils.locate_file_full', return_value=mock_locations), \
+             patch('utils.samweb_wrapper.locate_file_strict', return_value=mock_locations), \
              patch('os.makedirs'), \
              patch('subprocess.run', return_value=mock_run_result) as mock_run:
             stash_utils.copy_dataset_to_stash(
@@ -1393,7 +1393,7 @@ class TestStashUtils(unittest.TestCase):
         mock_files = ["dts.mu2e.CeEndpoint.Run1Bab.001440_00000000.art"]
 
         with patch('utils.stash_utils.files_in_dataset', return_value=mock_files), \
-             patch('utils.stash_utils.locate_file_full', return_value=[]), \
+             patch('utils.samweb_wrapper.locate_file_strict', return_value=[]), \
              patch('os.makedirs'), \
              patch('subprocess.run') as mock_run:
             n = stash_utils.copy_dataset_to_stash(

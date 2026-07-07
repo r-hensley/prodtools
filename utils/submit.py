@@ -99,6 +99,49 @@ def build_mu2ejobsub_argv(entry, tarball_path, opts):
     return argv
 
 
+def _ensure_local_tarball(tarball_name):
+    """Fetch the cnf tarball into cwd if not already local; return its
+    resolved path. Shared by both backends."""
+    tarball_path = Path(tarball_name).resolve()
+    if not tarball_path.is_file():
+        print(f"Fetching tarball: {tarball_name}")
+        _fetch_file_local(tarball_name)
+        tarball_path = Path(tarball_name).resolve()
+    return tarball_path
+
+
+def _run_submit(cmd, tarball_name, njobs):
+    """Run a submission command, echo its output, and return the result
+    dict both backends share (tarball/cluster_id/njobs/status)."""
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print(result.stderr, file=sys.stderr)
+
+    if result.returncode != 0:
+        print(f"ERROR: {cmd[0]} failed with exit code {result.returncode}")
+        return {
+            'tarball': tarball_name,
+            'cluster_id': None,
+            'njobs': njobs,
+            'status': 'failed',
+        }
+
+    cluster_id = _parse_cluster_id(result.stdout)
+    if cluster_id:
+        print(f"Submitted cluster: {cluster_id}")
+    else:
+        print(f"WARNING: could not parse cluster ID from {cmd[0]} output")
+
+    return {
+        'tarball': tarball_name,
+        'cluster_id': cluster_id,
+        'njobs': njobs,
+        'status': 'submitted',
+    }
+
+
 def _parse_cluster_id(stdout):
     """Parse condor cluster ID from mu2ejobsub / jobsub_submit output.
 
@@ -197,14 +240,10 @@ def submit_entry_direct(entry, idx, opts):
     desc = _jobsub_argv.description_from_tarball(tarball_name)
 
     # Tarball must be locally accessible to ship via -f dropbox://.
-    tarball_path = Path(tarball_name).resolve()
-    if not tarball_path.is_file():
-        if opts.dry_run:
-            tarball_path = Path('/tmp') / tarball_name
-        else:
-            print(f"Fetching tarball: {tarball_name}")
-            _fetch_file_local(tarball_name)
-            tarball_path = Path(tarball_name).resolve()
+    if opts.dry_run and not Path(tarball_name).resolve().is_file():
+        tarball_path = Path('/tmp') / tarball_name
+    else:
+        tarball_path = _ensure_local_tarball(tarball_name)
 
     # njobs from the cnf is authoritative; POMS-map's field is informational.
     # output_filenames feeds the per-(area, tier, owner) token scope derivation
@@ -291,33 +330,7 @@ def submit_entry_direct(entry, idx, opts):
             'status': 'dry_run',
         }
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.stdout:
-        print(result.stdout)
-    if result.stderr:
-        print(result.stderr, file=sys.stderr)
-
-    if result.returncode != 0:
-        print(f"ERROR: jobsub_submit failed with exit code {result.returncode}")
-        return {
-            'tarball': tarball_name,
-            'cluster_id': None,
-            'njobs': len(jobset),
-            'status': 'failed',
-        }
-
-    cluster_id = _parse_cluster_id(result.stdout)
-    if cluster_id:
-        print(f"Submitted cluster: {cluster_id}")
-    else:
-        print("WARNING: could not parse cluster ID from jobsub_submit output")
-
-    return {
-        'tarball': tarball_name,
-        'cluster_id': cluster_id,
-        'njobs': len(jobset),
-        'status': 'submitted',
-    }
+    return _run_submit(cmd, tarball_name, len(jobset))
 
 
 def submit_entry(entry, idx, opts):
@@ -354,11 +367,7 @@ def _submit_entry_mu2ejobsub(entry, idx, opts):
     if opts.dry_run:
         tarball_path = tarball_name
     else:
-        tarball_path = Path(tarball_name).resolve()
-        if not tarball_path.is_file():
-            print(f"Fetching tarball: {tarball_name}")
-            _fetch_file_local(tarball_name)
-            tarball_path = Path(tarball_name).resolve()
+        tarball_path = _ensure_local_tarball(tarball_name)
 
     argv = build_mu2ejobsub_argv(entry, tarball_path, opts)
 
@@ -374,39 +383,7 @@ def _submit_entry_mu2ejobsub(entry, idx, opts):
             'status': 'dry_run',
         }
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-    )
-
-    # Print mu2ejobsub output
-    if result.stdout:
-        print(result.stdout)
-    if result.stderr:
-        print(result.stderr, file=sys.stderr)
-
-    if result.returncode != 0:
-        print(f"ERROR: mu2ejobsub failed with exit code {result.returncode}")
-        return {
-            'tarball': tarball_name,
-            'cluster_id': None,
-            'njobs': njobs,
-            'status': 'failed',
-        }
-
-    cluster_id = _parse_cluster_id(result.stdout)
-    if cluster_id:
-        print(f"Submitted cluster: {cluster_id}")
-    else:
-        print("WARNING: could not parse cluster ID from mu2ejobsub output")
-
-    return {
-        'tarball': tarball_name,
-        'cluster_id': cluster_id,
-        'njobs': njobs,
-        'status': 'submitted',
-    }
+    return _run_submit(cmd, tarball_name, njobs)
 
 
 def _check_token():

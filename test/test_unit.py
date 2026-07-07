@@ -2753,29 +2753,6 @@ class TestJobdefLookup(unittest.TestCase):
         finally:
             os.unlink(tar)
 
-    def test_cnf_njobs_for_output(self):
-        """Ground-truth njobs = producing cnf's njobs (resolver + Mu2eJobPars)."""
-        from utils import jobdef_lookup
-        mock_pars = MagicMock()
-        mock_pars.return_value.njobs.return_value = 50
-        with patch.object(jobdef_lookup, 'cnf_for_output', return_value="cnf.mu2e.X.TC.0.tar"), \
-             patch('utils.jobquery.Mu2eJobPars', mock_pars):
-            self.assertEqual(
-                jobdef_lookup.cnf_njobs_for_output(
-                    "dig.mu2e.CeEndpointOnSpill.MDC2025ap_best_v1_1.art"),
-                50)
-
-    def test_cnf_njobs_zero_raises(self):
-        """Open-ended generator cnf (njobs==0) must fail loud, not return 0 —
-        so completeness can't silently compare a real count against a bogus 0."""
-        from utils import jobdef_lookup
-        mock_pars = MagicMock()
-        mock_pars.return_value.njobs.return_value = 0
-        with patch.object(jobdef_lookup, 'cnf_for_output', return_value="cnf.mu2e.Gen.TC.0.tar"), \
-             patch('utils.jobquery.Mu2eJobPars', mock_pars):
-            with self.assertRaises(RuntimeError):
-                jobdef_lookup.cnf_njobs_for_output("dts.mu2e.Gen.MDC2025ap.art")
-
     def test_output_njobs_map(self):
         """Batch map: each cnf scanned once → {(output desc, tier): njobs}."""
         from utils import jobdef_lookup
@@ -2808,17 +2785,6 @@ class TestChainEmit(unittest.TestCase):
         "inloc": "tape",
         "simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/{campaign}/setup.sh",
     }
-
-    def test_stage_for_tier(self):
-        from utils import chain_emit
-        self.assertEqual(chain_emit.stage_for_tier("dts"), "digi")
-        self.assertEqual(chain_emit.stage_for_tier("dig"), "reco")
-        self.assertEqual(chain_emit.stage_for_tier("mcs"), "ntuple")
-
-    def test_stage_for_tier_unknown_raises(self):
-        from utils import chain_emit
-        with self.assertRaises(ValueError):
-            chain_emit.stage_for_tier("nts")
 
     def test_input_tier_for_output(self):
         from utils import chain_emit
@@ -3005,11 +2971,6 @@ class TestChainEmit(unittest.TestCase):
         from utils import chain_emit
         with self.assertRaises(ValueError):
             chain_emit.derive_input_defname({"input_data": {"a.art": 1, "b.art": 1}}, "C")
-
-    def test_dataset_complete_true_false(self):
-        from utils import chain_emit
-        self.assertTrue(chain_emit.dataset_complete("d", lambda n: 50, lambda n: 50))
-        self.assertFalse(chain_emit.dataset_complete("d", lambda n: 40, lambda n: 50))
 
     # --- mixing: out_campaign / defer_desc / dsconf override ---
 

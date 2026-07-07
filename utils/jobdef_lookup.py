@@ -250,20 +250,6 @@ def locate_tarball(jobdef):
         raise RuntimeError(f"Error locating tarball for {jobdef}: {e}")
 
 
-def cnf_for_output(dataset_name):
-    """Return the cnf tarball path that produced ``dataset_name`` (an output
-    dataset or file name). Raises RuntimeError if none is found — fail loud
-    rather than guess (no silent fallback)."""
-    n = Mu2eName.parse(dataset_name)
-    jobdefs = list_jobdefs(n.dsconf)
-    if not jobdefs:
-        raise RuntimeError(f"No cnf at dsconf '{n.dsconf}' for {dataset_name}")
-    tarball = find_matching_jobdef(jobdefs, n.description, input_type=n.tier)
-    if not tarball:
-        raise RuntimeError(f"No producing cnf found for {dataset_name}")
-    return tarball
-
-
 def output_njobs_map(dsconf):
     """Map {(output_description, output_tier): njobs} for every cnf at <dsconf>,
     opening each cnf exactly once.
@@ -292,21 +278,3 @@ def output_njobs_map(dsconf):
                 out[(n.description, n.tier)] = njobs
     return out
 
-
-def cnf_njobs_for_output(dataset_name):
-    """Ground-truth expected file count for an output dataset: the njobs of the
-    cnf that produced it. Reused as the completeness target (a finished
-    input-driven stage emits exactly njobs files per output stream).
-
-    Raises RuntimeError when the cnf has no inherent job count — i.e. an
-    open-ended EmptyEvent *generator* cnf (njobs determined at submit time, not
-    stored in the cnf). Callers must not treat that as "incomplete"; the cnf
-    simply can't answer (fail loud rather than compare against a bogus 0)."""
-    from utils.jobquery import Mu2eJobPars
-    cnf = cnf_for_output(dataset_name)
-    n = Mu2eJobPars(cnf).njobs()
-    if not n or n <= 0:
-        raise RuntimeError(
-            f"{cnf} reports njobs={n}: open-ended generator cnf has no inherent "
-            f"job count; completeness is indeterminate from the cnf")
-    return n

@@ -439,12 +439,6 @@ def build_jobdef(config, job_args, json_output=False):
                     'command': ' '.join(cmd_parts),
                     'desc': config['desc'],
                     'simjob_setup': config['simjob_setup']
-                },
-                {
-                    'type': 'mu2ejobfcl',
-                    'command': f"mu2ejobfcl --jobdef {parfile_name} --default-location tape --default-protocol root --index 0 > {fcl_file}",
-                    'desc': config['desc'],
-                    'index': 0
                 }
             ]
         }

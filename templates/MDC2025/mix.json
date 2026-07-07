@@ -39,9 +39,6 @@
     "fcl": [
       "Production/JobConfig/mixing/Mix.fcl"
     ],
-    "merge_events": [
-      500
-    ],
     "inloc": [
       "tape"
     ],
@@ -91,9 +88,6 @@
     ],
     "fcl": [
       "Production/JobConfig/mixing/Mix.fcl"
-    ],
-    "merge_events": [
-      500
     ],
     "inloc": [
       "tape"

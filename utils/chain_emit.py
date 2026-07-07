@@ -21,21 +21,10 @@ _FAMILY_RE = re.compile(r"^(MDC\d{4}|Run\d+[A-Z]?)")
 
 # stage -> the input data tier that stage consumes
 STAGE_INPUT_TIER = {'digi': 'dts', 'reco': 'dig', 'ntuple': 'mcs'}
-# inverse: input tier -> stage (for tier-inferred stage selection)
-TIER_TO_STAGE = {tier: stage for stage, tier in STAGE_INPUT_TIER.items()}
 # stage -> the output data tier(s) it produces (ntuple writes nts or ntd)
 STAGE_OUTPUT_TIERS = {'digi': ('dig',), 'reco': ('mcs',), 'ntuple': ('nts', 'ntd')}
 # inverse: output tier -> stage
 _TIER_TO_OUTPUT_STAGE = {t: s for s, tiers in STAGE_OUTPUT_TIERS.items() for t in tiers}
-
-
-def stage_for_tier(tier):
-    """Infer the chain stage from an input dataset's tier (dts→digi, dig→reco, mcs→ntuple)."""
-    try:
-        return TIER_TO_STAGE[tier]
-    except KeyError:
-        raise ValueError(
-            f"no chain stage consumes tier '{tier}' (known: {sorted(TIER_TO_STAGE)})")
 
 
 def input_tier_for_output(out_tier):
@@ -302,9 +291,3 @@ def output_datasets(entry, owner='mu2e'):
                                           dsconf=dsconf, extension=n.extension)))
     return out
 
-
-def dataset_complete(dataset_name, count_fn, njobs_fn):
-    """True iff the dataset has exactly as many files as its producing cnf's
-    njobs. ``count_fn(name)->int`` and ``njobs_fn(name)->int`` are injected so
-    this stays unit-testable without SAM."""
-    return count_fn(dataset_name) == njobs_fn(dataset_name)

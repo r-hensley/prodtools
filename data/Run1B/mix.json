@@ -15,12 +15,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Baa.art": 2
     }],
     "dsconf": ["Run1Bab_best_v1_2"],
-    "mixconf": [0],
     "pbeam": ["MixLow"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bab/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["tape"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -53,12 +51,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Baa.art": 2
     }],
     "dsconf": ["Run1Bab2_best_v1_2"],
-    "mixconf": [0],
     "pbeam": ["MixLow"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bab/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["tape"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -94,12 +90,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Baa.art": 2
     }],
     "dsconf": ["Run1Baf_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["MixLow"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Baf/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["stash"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -131,12 +125,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Baa.art": 2
     }],
     "dsconf": ["Run1Baf_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["MixLow"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Baf/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["stash"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -175,12 +167,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bag.art": 2
     }],
     "dsconf": ["Run1Bah_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bah/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -213,12 +203,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bag.art": 2
     }],
     "dsconf": ["Run1Bah_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bah/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -252,12 +240,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bag.art": 2
     }],
     "dsconf": ["Run1Bah_best_v1_4-002"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bah/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -290,12 +276,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bai-007.art": 1
     }],
     "dsconf": ["Run1Bai_best_v1_4-003"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bai/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["tape"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -334,12 +318,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bai-004.art": 2
     }],
     "dsconf": ["Run1Bai_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bai/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -376,12 +358,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bai-004.art": 2
     }],
     "dsconf": ["Run1Bai_best_v1_4-001"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bai/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -421,12 +401,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bai-004.art": 2
     }],
     "dsconf": ["Run1Bai_best_v1_4-002"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bai/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["tape"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -472,12 +450,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Ban.art": 2
     }],
     "dsconf": ["Run1Ban_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Ban/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -512,12 +488,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Ban.art": 2
     }],
     "dsconf": ["Run1Ban_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Ban/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -555,12 +529,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Ban.art": 2
     }],
     "dsconf": ["Run1Ban_best_v1_5-000"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Ban/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [

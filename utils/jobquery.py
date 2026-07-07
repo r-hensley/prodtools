@@ -20,7 +20,6 @@ class Mu2eJobPars(Mu2eJobBase):
     def __init__(self, parfile):
         """Initialize with a job parameter file (.tar)"""
         super().__init__(parfile)
-        self.parfile = parfile  # Keep for backward compatibility
 
     def jobname(self):
         """Get the job name"""
@@ -94,7 +93,7 @@ class Mu2eJobPars(Mu2eJobBase):
     
     def extract_code(self):
         """Extract embedded code tarball to current directory"""
-        with tarfile.open(self.parfile, 'r') as tar:
+        with tarfile.open(self.jobdef, 'r') as tar:
             # Look for embedded code files
             for member in tar.getmembers():
                 if member.name.startswith('code/') or member.name.endswith('.tar'):

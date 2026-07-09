@@ -498,3 +498,13 @@ Note: DUNE justIN docs (v01.06.01, fetched live) mapped onto prodtools concepts.
 ## [2026-07-07] update | justin-vs-prodtools: n→1 determinism section
 Pages updated: justin-vs-prodtools
 Note: verified from file_processing.md — multi-file jobs = jobscript loops justin-get-file (no grouping flag); partition non-deterministic on three grounds (live-queue allocation with replica locality, concurrent interleaving, failure-reset reallocating files to OTHER jobs ≤6 attempts). justIN = provenance after the fact; prodtools = prediction before the fact. Matters when merged files are citable artifacts (Cat datasets referenced by name downstream).
+
+## [2026-07-09] production | MDC2025ar mix round — 4 primaries added
+Extended templates/MDC2025/mix.json roster (entry 1) with DIOtail95,
+RPCExternalPhysical, RPCInternalPhysical, IPAMuminusMichel. Emitted via
+`latestDatasets --emit mix --campaign MDC2025ar --skip-produced` (auto-resolved
+to MDC2025ap primaries, 5000 files each), pushed `json2jobdef --prod` to POMS map
+MDC2025-032.json (9→13 entries, 34599→54599 jobs). All 4 cnf tarballs SAM-registered,
+RC=0. Verified: fcldump of DIOtail95 mix fcl shows 4 pileup mixers wired, DbService
+Sim_best/v1_3, run 001430 — structurally identical to the 11 ar mixes already in
+production. Memory: reference_mdc2025ar_mix_round.

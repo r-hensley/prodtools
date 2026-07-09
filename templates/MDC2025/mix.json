@@ -9,7 +9,11 @@
       "FlatGammaCalo",
       "CosmicSignal",
       "ensembleMDS3c",
-      "PbarResampling"
+      "PbarResampling",
+      "DIOtail95",
+      "RPCExternalPhysical",
+      "RPCInternalPhysical",
+      "IPAMuminusMichel"
     ],
     "input_data": [
       {

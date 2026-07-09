@@ -19,7 +19,7 @@
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bab/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "inloc": ["tape"],
+    "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
       {
@@ -55,7 +55,7 @@
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bab/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "inloc": ["tape"],
+    "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
       {
@@ -280,7 +280,7 @@
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bai/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "inloc": ["tape"],
+    "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
       {
@@ -405,7 +405,7 @@
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bai/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "inloc": ["tape"],
+    "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
       {

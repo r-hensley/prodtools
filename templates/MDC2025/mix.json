@@ -44,7 +44,7 @@
       "Production/JobConfig/mixing/Mix.fcl"
     ],
     "inloc": [
-      "tape"
+      "resilient"
     ],
     "outloc": [
       {
@@ -94,7 +94,7 @@
       "Production/JobConfig/mixing/Mix.fcl"
     ],
     "inloc": [
-      "tape"
+      "resilient"
     ],
     "outloc": [
       {

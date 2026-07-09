@@ -517,3 +517,14 @@ total events ~314k), RMCInternal njobs 5000→1000 (~1.9M events). Pushed --prod
 MDC2025-032 (54599→60599 jobs), both cnfs SAM-registered RC=0. Staged for later:
 merge_filter.json RMCExternalCat (artcat merge 5, Phase 2 after grid completion) →
 then mix into ar round (Phase 3). Memory: project_rmc_ap_remake.
+
+## [2026-07-09] rule + incident | mixing pileup → resilient
+MDC2025ar mix jobs failed with FileOpenError opening a tape pileup file
+(NeutralsFlashCat.MDC2025ad, evicted). Root cause: MDC2025 mix template used
+inloc=tape and the 4 pileup Cats were tape-only. Rule: mixing pileup must be
+resilient (inloc=resilient AND Cats physically staged to /pnfs/mu2e/resilient),
+matching the working Run1Ban mixes. Flipped inloc tape→resilient in
+templates/MDC2025/mix.json + data/{mdc2025,Run1B,mdc2030}/mix.json mixing entries
+(outloc→tape unchanged; stash entries left as-is). Staged the 4 MDC2025 pileup
+Cats to resilient (~1470 files, ~156GB) and flipped inloc in POMS map MDC2025-032
+ar mix entries. Memory: reference_mixing_pileup_resilient_rule.

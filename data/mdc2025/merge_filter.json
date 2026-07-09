@@ -1,5 +1,19 @@
 [
     {
+	"desc": "RMCExternalCat",
+	"dsconf": "MDC2025ap",
+	"fcl": "Production/JobConfig/common/artcat.fcl",
+	"input_data": {"dts.mu2e.RMCExternal.MDC2025ap.art": 5},
+	"fcl_overrides": {
+		"outputs.out.fileName": "dts.owner.RMCExternalCat.version.sequence.art"
+	},
+	"inloc": "disk",
+	"outloc": {
+		"*.art": "disk"
+	},
+	"simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ap/setup.sh"
+    },
+    {
 	"desc": "CosmicCRYSpillSplitter",
 	"dsconf": "MDC2025ac",
 	"fcl": "Production/JobConfig/cosmic/SpillSplitter.fcl",

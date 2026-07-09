@@ -508,3 +508,12 @@ MDC2025-032.json (9→13 entries, 34599→54599 jobs). All 4 cnf tarballs SAM-re
 RC=0. Verified: fcldump of DIOtail95 mix fcl shows 4 pileup mixers wired, DbService
 Sim_best/v1_3, run 001430 — structurally identical to the 11 ar mixes already in
 production. Memory: reference_mdc2025ar_mix_round.
+
+## [2026-07-09] production | RMC ap remake — Phase 1 primaries
+Added RMCExternal + RMCInternal @ MDC2025ap to data/mdc2025/primary_muon.json
+(resample MuminusStopsCat.MDC2025ac, geom_run1_a.txt, outloc disk). Reduced stats
+per user: RMCExternal events 2M→400k keeping 5000 jobs (~17h→~3-4h/job, 5× less
+total events ~314k), RMCInternal njobs 5000→1000 (~1.9M events). Pushed --prod to
+MDC2025-032 (54599→60599 jobs), both cnfs SAM-registered RC=0. Staged for later:
+merge_filter.json RMCExternalCat (artcat merge 5, Phase 2 after grid completion) →
+then mix into ar round (Phase 3). Memory: project_rmc_ap_remake.

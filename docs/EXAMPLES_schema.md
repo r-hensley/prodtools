@@ -98,6 +98,14 @@ reading the code:
   `dir:` reads via direct POSIX (the `file:` protocol is forced).
 - Random sampling seed is derived from `(owner, desc, dsconf, dataset,
   count, njobs)` — same inputs always produce the same file selection.
+- The per-job seed is `baseSeed = 1 + cnf index` (flat — no version, run,
+  or dsconf term). To extend a dataset's statistics, reuse the existing
+  tarball at fresh indices via a `firstjob` window: a POMS-map entry with
+  `"firstjob": F, "njobs": M` runs cnf indices `[F, F+M)` (fresh seeds
+  `F+1..`, fresh sequencers). Do NOT bump `version`/`run` for a
+  same-input expansion — that restarts the cnf index at 0 and duplicates
+  physics. Only open-ended cnfs (no `tbs.njobs` cap) can be windowed past
+  their original count; closed cnfs are capacity-checked.
 - Parity tests validate byte-for-byte equivalence against the Perl
   `mu2ejobdef` reference implementation.
 - `pomsMonitor` database default path is `poms_data.db` at the repo root

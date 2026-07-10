@@ -22,6 +22,7 @@
 - [[2026-06-15-run1ban-stm-resampler-port]] — 3 STM resampler entries (BeamToVDEle/Mu/Target) ported from MDC2025ai → `data/Run1B/resampler_stm.json` at Run1Ban-001; uniform 5000×200000; Run1Bai beam cats + Run1Ban-001 TargetStopsCat. 15000 jobs added to MDC2025-029 (now 61004) _(ingested 2026-06-15)_
 - [[2026-07-02-jobdef-arithmetic-and-tbs-njobs]] — per-index job arithmetic (sequencer/job_outputs/njobs/…) consolidated once into `Mu2eJobBase`, `jobiodetail.py` deleted (its stale copies made mkrecovery/submit disagree with the worker); tarballs now self-descriptive via `tbs.njobs` (declared-or-derived; absent = open-ended, POMS map authoritative), fixing direct-backend generator submission _(decided 2026-07-02)_
 - [[2026-07-03-file-resolver-and-sam-query-plan]] — IMPLEMENTED 2026-07-06: `utils/file_resolver.py` owns all dCache/CVMFS path grammar; `samweb_wrapper` deepened into the only SAM access path (q_* builders + fail-loud named queries); verified byte-identical fcl on real cnfs. MetaCat seam now real _(proposed 2026-07-03, implemented 2026-07-06)_
+- [[2026-07-10-firstjob-index-windows]] — POMS-map entries can window a cnf's index space (`firstjob`: entry runs cnf indices `[F, F+njobs)`); the supported statistics-expansion mechanism (baseSeed = 1+index, so only fresh indices give fresh physics — `version`/run bumps do NOT); same tarball reusable once per window, mkrecovery/db_builder/submit window-aware _(implemented 2026-07-10)_
 
 ### Runs
 <!-- entries added by wiki-ingest -->

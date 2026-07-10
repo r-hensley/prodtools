@@ -217,6 +217,9 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
 
     # Track tarballs we see in JSON files (to remove jobs that no longer exist)
     seen_tarballs = set()
+    # Expected file count per tarball this scan: max window end across all
+    # its entries (a tarball may appear once per firstjob window).
+    scan_expected = {}
     count = 0
     
     # NB: deliberately uses bare entry.get(...) rather than utils.poms_entry
@@ -236,11 +239,21 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
             # Check if job already exists
             existing_job = session.query(Job).filter_by(tarball=tarball).first()
             
+            # Jobs are keyed by tarball, but a tarball may appear in several
+            # map entries as index windows (statistics expansion via
+            # `firstjob`). Windows tile from 0, so the expected file count
+            # is the MAX window end across the tarball's entries — aggregated
+            # explicitly, not by relying on file scan order.
+            expected_njobs = max(
+                scan_expected.get(tarball, 0),
+                entry.get("firstjob", 0) + entry.get("njobs", 0))
+            scan_expected[tarball] = expected_njobs
+
             if existing_job:
                 # Update existing job, but preserve metrics
                 existing_job.fcl_template = entry.get("fcl_template")
                 existing_job.indef = entry.get("indef")
-                existing_job.njobs = entry.get("njobs", 0)
+                existing_job.njobs = expected_njobs
                 existing_job.template_mode = entry.get("template_mode", False)
                 existing_job.inloc = entry.get("inloc")
                 existing_job.source_file = json_file
@@ -252,7 +265,7 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
                     tarball=tarball,
                     fcl_template=entry.get("fcl_template"),
                     indef=entry.get("indef"),
-                    njobs=entry.get("njobs", 0),
+                    njobs=expected_njobs,
                     template_mode=entry.get("template_mode", False),
                     inloc=entry.get("inloc"),
                     source_file=json_file,

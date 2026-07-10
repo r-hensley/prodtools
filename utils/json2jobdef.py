@@ -17,6 +17,7 @@ from pathlib import Path
 from utils.prod_utils import *
 from utils.mixing_utils import *
 from utils.config_utils import get_tarball_desc, prepare_fields_for_job, normalize_input_data
+from utils.poms_entry import firstjob_of, validate_window
 from utils.job_common import Mu2eName, default_owner
 from utils.jobquery import Mu2eJobPars
 from utils.jobdef import create_jobdef, get_output_dataset_names
@@ -453,15 +454,38 @@ def append_jobdef(config, jobdefs_file=None):
         "outputs": []
     }
 
+    # Optional cnf-index window start (statistics expansion; semantics
+    # in utils/poms_entry.py). firstjob_of/validate_window are the single
+    # validation authority — shared with the submit path.
+    try:
+        firstjob = firstjob_of(config)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    if firstjob and is_generic:
+        print("Error: firstjob requires a fixed job count (njobs); "
+              "generic tarball entries have no index window")
+        sys.exit(1)
+
     # Generic tarballs have no pre-determined job count — omit njobs so
     # runmu2e detects direct-input mode (absence of njobs is the trigger)
     if not is_generic:
         njobs = config['njobs']
+        jp = None
         if njobs == -1:
             jp = Mu2eJobPars(parfile_name)
             njobs = jp.njobs()
             print(f"Queried job count: {njobs}")
         jobdef_entry["njobs"] = njobs
+        if firstjob:
+            capacity = (jp or Mu2eJobPars(parfile_name)).njobs()
+            try:
+                validate_window(firstjob, njobs, capacity)
+            except ValueError as e:
+                print(f"Error: {e} for {parfile_name}")
+                sys.exit(1)
+            jobdef_entry["firstjob"] = firstjob
+            print(f"Windowed entry: cnf indices {firstjob}..{firstjob + njobs - 1}")
     
     # Handle outloc - must be dict with dataset-specific locations
     outloc = config['outloc']
@@ -501,10 +525,14 @@ def _write_jobdef_json_entry(jobdef_entry, jobdefs_file=None):
             print(f"Warning: Could not parse existing {dsconf_file}, starting fresh")
             existing_entries = []
     
-    # Check for duplicate tarball entries
+    # Check for duplicate (tarball, firstjob) entries — the same tarball
+    # may legitimately appear once per index window (statistics expansion),
+    # but the same window must not be dispatched twice.
     tarball_name = jobdef_entry["tarball"]
+    new_firstjob = firstjob_of(jobdef_entry)
     for existing in existing_entries:
-        if existing.get("tarball") == tarball_name:
+        if (existing.get("tarball") == tarball_name
+                and firstjob_of(existing) == new_firstjob):
             print(f"Entry already exists in {dsconf_file}")
             return
     

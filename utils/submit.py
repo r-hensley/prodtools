@@ -31,7 +31,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.prod_utils import _fetch_file_local
 from utils.job_common import Mu2eName, log_storage_location
-from utils.poms_entry import tarball_of, outputs_of, njobs_of, inloc_of
+from utils.poms_entry import (tarball_of, outputs_of, njobs_of, inloc_of,
+                              firstjob_of, validate_window)
 from utils import jobsub_argv as _jobsub_argv
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -56,9 +57,14 @@ def build_mu2ejobsub_argv(entry, tarball_path, opts):
     """
     argv = ['--jobdef', str(tarball_path)]
 
-    # Job set specification
+    # Job set specification. A windowed entry maps to mu2ejobsub's native
+    # --firstjob/--njobs; plain entries keep --all.
     if 'njobs' in entry:
-        argv.append('--all')
+        firstjob = firstjob_of(entry)
+        if firstjob:
+            argv.extend(['--firstjob', str(firstjob), '--njobs', str(njobs_of(entry))])
+        else:
+            argv.append('--all')
 
     # Input location and protocol (single-homed in jobsub_argv — the same
     # table drives both backends, so resilient gets `root` here too)
@@ -210,21 +216,32 @@ def _read_cnf_facts(tarball_path):
             [v for v in out.values() if v and "/" not in v])
 
 
-def _compute_jobset(opts, njobs_total):
+def _compute_jobset(opts, njobs_total, firstjob=0, entry_njobs=None):
     """Resolve --first/--num into the list of job indices to submit.
 
-    Default: every index 0..njobs_total-1 (== mu2ejobsub --all).
+    Indices are entry-relative (PROCESS space, starting at 0) — a windowed
+    entry's `firstjob` offset is applied worker-side by `resolve_map_index`
+    (the entry ships in ops['jobdesc']), not here. A window is sized by the
+    entry's njobs and validated against the cnf capacity (njobs_total,
+    0 = open-ended) via poms_entry.validate_window.
+
+    Default: every index 0..size-1 (== mu2ejobsub --all).
     --first N alone: 1 job at index N.
     --first N --num M: indices [N, N+M).
     """
+    if firstjob:
+        validate_window(firstjob, entry_njobs, njobs_total)
+        size = entry_njobs
+    else:
+        size = njobs_total
     if opts.first is None and opts.num is None:
-        return list(range(njobs_total))
+        return list(range(size))
     first = opts.first or 0
     num = opts.num if opts.num is not None else 1
-    end = min(first + num, njobs_total)
-    if first < 0 or first >= njobs_total or end <= first:
+    end = min(first + num, size)
+    if first < 0 or first >= size or end <= first:
         raise ValueError(
-            f"--first {first} --num {num} out of range for njobs_total={njobs_total}"
+            f"--first {first} --num {num} out of range for jobset size={size}"
         )
     return list(range(first, end))
 
@@ -255,12 +272,16 @@ def submit_entry_direct(entry, idx, opts):
     else:
         njobs_total, input_datasets, output_filenames = _read_cnf_facts(tarball_path)
 
-    jobset = _compute_jobset(opts, njobs_total)
+    firstjob = firstjob_of(entry)
+    jobset = _compute_jobset(opts, njobs_total, firstjob=firstjob,
+                             entry_njobs=njobs_of(entry))
 
     print(f"\n{'='*60}")
     print(f"Entry {idx}: {desc} (cnf njobs={njobs_total}, submitting {len(jobset)})")
     print(f"  tarball: {tarball_name}")
     print(f"  inloc:   {inloc_of(entry)}")
+    if firstjob and jobset:
+        print(f"  window:  cnf indices {firstjob + jobset[0]}..{firstjob + jobset[-1]} (firstjob={firstjob})")
     print(f"  jobset:  {jobset if len(jobset) <= 10 else f'[{jobset[0]}..{jobset[-1]}] ({len(jobset)} indices)'}")
     print(f"{'='*60}")
 

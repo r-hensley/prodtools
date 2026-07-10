@@ -3521,6 +3521,239 @@ class TestNormalizeInputData(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 34. firstjob index windows — statistics expansion without seed collisions
+# ---------------------------------------------------------------------------
+
+class TestFirstjobOf(unittest.TestCase):
+    """firstjob_of: fail-loud accessor for the cnf-index window start."""
+
+    def test_default_zero(self):
+        from utils.poms_entry import firstjob_of
+        self.assertEqual(firstjob_of({'tarball': 'x'}), 0)
+
+    def test_explicit_value(self):
+        from utils.poms_entry import firstjob_of
+        self.assertEqual(firstjob_of({'firstjob': 5000}), 5000)
+
+    def test_malformed_raises(self):
+        """A silently-ignored firstjob would rerun indices [0, njobs) and
+        duplicate physics (baseSeed = 1 + index) — must fail loud."""
+        from utils.poms_entry import firstjob_of
+        for bad in (-1, '5000', 5000.0, True):
+            with self.assertRaises(ValueError):
+                firstjob_of({'firstjob': bad})
+
+
+class TestResolveMapIndex(unittest.TestCase):
+    """Global (index-dataset) → (entry, local cnf index) dispatch, the
+    seed-critical arithmetic: local = global - cumulative + firstjob."""
+
+    MAP = [
+        {'tarball': 'cnf.mu2e.A.C.0.tar', 'njobs': 3},
+        {'tarball': 'cnf.mu2e.G.C.0.tar'},  # generic: occupies no slots
+        {'tarball': 'cnf.mu2e.B.C.0.tar', 'njobs': 2, 'firstjob': 5000},
+    ]
+
+    def _resolve(self, global_idx):
+        from utils.prod_utils import resolve_map_index
+        return resolve_map_index(self.MAP, global_idx)
+
+    def test_plain_entry_starts_at_zero(self):
+        entry, i, local = self._resolve(0)
+        self.assertEqual((i, local), (0, 0))
+        entry, i, local = self._resolve(2)
+        self.assertEqual((i, local), (0, 2))
+
+    def test_generic_entry_skipped(self):
+        """The generic entry between A and B must not consume index slots."""
+        entry, i, local = self._resolve(3)
+        self.assertEqual(entry['tarball'], 'cnf.mu2e.B.C.0.tar')
+        self.assertEqual(i, 2)
+
+    def test_windowed_entry_offsets_local_index(self):
+        """Expansion entry: global slots 3..4 → cnf indices 5000..5001,
+        i.e. baseSeed 5001..5002 — no collision with the original 0..2."""
+        self.assertEqual(self._resolve(3)[2], 5000)
+        self.assertEqual(self._resolve(4)[2], 5001)
+
+    def test_out_of_range_returns_none(self):
+        self.assertEqual(self._resolve(5), (None, None, None))
+
+    def test_same_tarball_two_windows(self):
+        """Original + expansion entries for one tarball must partition the
+        cnf index space with no overlap."""
+        from utils.prod_utils import resolve_map_index
+        map_ = [
+            {'tarball': 'cnf.mu2e.X.C.0.tar', 'njobs': 5000},
+            {'tarball': 'cnf.mu2e.X.C.0.tar', 'njobs': 100, 'firstjob': 5000},
+        ]
+        locals_ = [resolve_map_index(map_, g)[2] for g in (0, 4999, 5000, 5099)]
+        self.assertEqual(locals_, [0, 4999, 5000, 5099])
+
+
+class TestComputeJobsetWindow(unittest.TestCase):
+    """Direct backend: jobset stays entry-relative (PROCESS space); a
+    windowed entry sizes it from the entry's njobs and validates capacity."""
+
+    def _opts(self, first=None, num=None):
+        from types import SimpleNamespace
+        return SimpleNamespace(first=first, num=num)
+
+    def test_plain_uses_cnf_njobs(self):
+        from utils.submit import _compute_jobset
+        self.assertEqual(_compute_jobset(self._opts(), 4), [0, 1, 2, 3])
+
+    def test_windowed_open_ended_cnf(self):
+        """Open-ended cnf (capacity 0): entry njobs sizes the jobset;
+        indices stay 0-based — the offset is applied worker-side."""
+        from utils.submit import _compute_jobset
+        self.assertEqual(
+            _compute_jobset(self._opts(), 0, firstjob=5000, entry_njobs=3),
+            [0, 1, 2])
+
+    def test_windowed_within_closed_capacity(self):
+        from utils.submit import _compute_jobset
+        self.assertEqual(
+            _compute_jobset(self._opts(), 7000, firstjob=5000, entry_njobs=2000),
+            list(range(2000)))
+
+    def test_window_exceeding_capacity_raises(self):
+        from utils.submit import _compute_jobset
+        with self.assertRaises(ValueError):
+            _compute_jobset(self._opts(), 5000, firstjob=5000, entry_njobs=1)
+
+    def test_windowed_without_njobs_raises(self):
+        from utils.submit import _compute_jobset
+        with self.assertRaises(ValueError):
+            _compute_jobset(self._opts(), 0, firstjob=5000)
+
+    def test_first_num_carve_within_window(self):
+        from utils.submit import _compute_jobset
+        self.assertEqual(
+            _compute_jobset(self._opts(first=1, num=2), 0,
+                            firstjob=5000, entry_njobs=4),
+            [1, 2])
+
+
+class TestMu2ejobsubArgvFirstjob(unittest.TestCase):
+    """mu2ejobsub backend: windowed entries map to --firstjob/--njobs,
+    plain entries keep --all."""
+
+    def _argv(self, entry):
+        from types import SimpleNamespace
+        from utils.submit import build_mu2ejobsub_argv
+        opts = SimpleNamespace(dry_run=False, verbose=False, wfproject=None,
+                               role=None, disk=None, memory=None,
+                               expected_lifetime=None)
+        return build_mu2ejobsub_argv(entry, '/tmp/cnf.tar', opts)
+
+    def test_plain_entry_uses_all(self):
+        argv = self._argv({'tarball': 'cnf.mu2e.D.MDC2025af.0.tar',
+                           'njobs': 5, 'inloc': 'tape', 'outputs': []})
+        self.assertIn('--all', argv)
+        self.assertNotIn('--firstjob', argv)
+
+    def test_windowed_entry_uses_firstjob_njobs(self):
+        argv = self._argv({'tarball': 'cnf.mu2e.D.MDC2025af.0.tar',
+                           'njobs': 100, 'firstjob': 5000,
+                           'inloc': 'tape', 'outputs': []})
+        i = argv.index('--firstjob')
+        self.assertEqual(argv[i:i + 4], ['--firstjob', '5000', '--njobs', '100'])
+        self.assertNotIn('--all', argv)
+
+
+class TestJobdefsDedupePerWindow(unittest.TestCase):
+    """_write_jobdef_json_entry dedupes on (tarball, firstjob): the same
+    tarball may appear once per index window, but never twice per window."""
+
+    def _write(self, path, entry):
+        from utils.json2jobdef import _write_jobdef_json_entry
+        _write_jobdef_json_entry(entry, str(path))
+
+    def test_expansion_coexists_original_dedupes(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'map.json'
+            original = {'tarball': 'cnf.mu2e.X.C.0.tar', 'inloc': 'tape',
+                        'njobs': 5000, 'outputs': []}
+            expansion = {'tarball': 'cnf.mu2e.X.C.0.tar', 'inloc': 'tape',
+                         'njobs': 100, 'firstjob': 5000, 'outputs': []}
+            self._write(path, original)
+            self._write(path, expansion)   # new window → appended
+            self._write(path, dict(expansion))  # same window → deduped
+            self._write(path, dict(original))   # same window → deduped
+            entries = json.loads(path.read_text())
+            self.assertEqual(len(entries), 2)
+            self.assertEqual(entries[1].get('firstjob'), 5000)
+
+
+class TestMkrecoveryWindow(unittest.TestCase):
+    """find_missing_indices over a window: expected names come from cnf
+    indices [firstjob, firstjob+njobs) but returned indices are
+    WINDOW-RELATIVE, so callers map to global with plain cumulative+idx."""
+
+    def test_windowed_expected_names(self):
+        from utils import mkrecovery
+        seen = []
+
+        class FakeJP:
+            def __init__(self, path):
+                pass
+
+            def job_outputs(self, idx):
+                seen.append(idx)
+                return {'out': f'dts.mu2e.X.C.001470_{idx:08d}.art'}
+
+        with patch.object(mkrecovery, 'Mu2eJobPars', FakeJP), \
+             patch.object(mkrecovery, 'files_in_dataset',
+                          return_value=[f'dts.mu2e.X.C.001470_{i:08d}.art'
+                                        for i in (5000, 5002)]):
+            missing_idx, missing_files = mkrecovery.find_missing_indices(
+                'x.tar', 'dts.mu2e.X.C.art', 3, firstjob=5000)
+        self.assertEqual(seen, [5000, 5001, 5002])
+        self.assertEqual(missing_idx, {1})  # window-relative, not 5001
+
+
+class TestValidateWindow(unittest.TestCase):
+    """validate_window is the single owner of the window rule, shared by
+    the map writer (append_jobdef) and the submit path (_compute_jobset)."""
+
+    def test_open_ended_any_window(self):
+        from utils.poms_entry import validate_window
+        validate_window(5000, 100, 0)      # capacity 0 = open-ended
+        validate_window(5000, 100, None)
+
+    def test_closed_capacity_enforced(self):
+        from utils.poms_entry import validate_window
+        validate_window(5000, 2000, 7000)  # exactly fits
+        with self.assertRaises(ValueError):
+            validate_window(5000, 2001, 7000)
+
+    def test_njobs_required(self):
+        from utils.poms_entry import validate_window
+        with self.assertRaises(ValueError):
+            validate_window(5000, None, 0)
+
+
+class TestValidateJobdescFirstjob(unittest.TestCase):
+    """Dispatch boundary: firstjob on an njobs-less entry must fail loud
+    (maps are hand-edited; a silently-dropped window duplicates physics)."""
+
+    def test_firstjob_without_njobs_rejected(self):
+        from utils.prod_utils import validate_jobdesc
+        bad = [{'tarball': 'cnf.mu2e.X.C.0.tar', 'inloc': 'tape',
+                'outputs': [], 'firstjob': 5000}]
+        with self.assertRaises(SystemExit):
+            validate_jobdesc(bad)
+
+    def test_firstjob_with_njobs_accepted(self):
+        from utils.prod_utils import validate_jobdesc
+        ok = [{'tarball': 'cnf.mu2e.X.C.0.tar', 'inloc': 'tape',
+               'outputs': [], 'firstjob': 5000, 'njobs': 10}]
+        self.assertEqual(validate_jobdesc(ok), False)  # normal mode
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 

@@ -16,6 +16,7 @@ from .config_utils import normalize_input_data
 from .job_common import Mu2eName
 from .jobfcl import Mu2eJobFCL
 from .jobquery import Mu2eJobPars
+from .poms_entry import firstjob_of, njobs_of
 from .samweb_wrapper import (
     create_definition,
     delete_definition,
@@ -246,7 +247,10 @@ def summarize_and_index(jobdefs_file, prod=True):
 
     for i, j in enumerate(jobdefs):
         outputs = ", ".join(f"{o['dataset']}→{o['location']}" for o in j['outputs'])
-        print(f"[{i}] {j['tarball']}: {j.get('njobs', 0)} jobs, input={j['inloc']}, outputs={outputs}")
+        njobs = njobs_of(j, 0)
+        firstjob = firstjob_of(j)
+        window = f", cnf window={firstjob}..{firstjob + njobs - 1}" if firstjob else ""
+        print(f"[{i}] {j['tarball']}: {njobs} jobs, input={j['inloc']}, outputs={outputs}{window}")
 
     print(f"\nTotal: {total_jobs} jobs")
 
@@ -291,6 +295,17 @@ def validate_jobdesc(jobdesc):
     if not jobdesc:
         print("Error: No job descriptions found in jobdesc file")
         sys.exit(1)
+
+    # firstjob (cnf-index window) is only meaningful on njobs-bearing
+    # entries — anywhere else it would be silently ignored and the entry
+    # would re-run cnf indices [0, N), duplicating physics. Maps are
+    # hand-edited in practice, so enforce this at the dispatch boundary
+    # for every mode, not just at map-write time.
+    for i, entry in enumerate(jobdesc):
+        if 'firstjob' in entry and 'njobs' not in entry:
+            print(f"Error: jobdesc entry {i} has 'firstjob' but no 'njobs' — "
+                  f"index windows require a fixed job count")
+            sys.exit(1)
 
     # Check if g4bl runner (has runner: 'g4bl' field)
     if jobdesc[0].get('runner') == 'g4bl':
@@ -488,14 +503,39 @@ def process_direct_input(jobdesc, fname, args):
     return fcl, simjob_setup, fname, outputs
 
 
+def resolve_map_index(jobdesc, job_index):
+    """Map a global (index-dataset) job index to its POMS-map entry and
+    the cnf-local job index.
+
+    Each njobs-bearing entry occupies the next `njobs` slots of the global
+    index space (generic entries occupy none); within an entry
+    `local = global - cumulative + firstjob`, so a windowed entry runs cnf
+    indices [firstjob, firstjob+njobs). Window semantics (statistics
+    expansion, seed safety): see utils/poms_entry.py.
+
+    Returns:
+        tuple: (entry, entry_index, local_job_index), or (None, None, None)
+               if job_index is beyond the map's total njobs.
+    """
+    cumulative_jobs = 0
+    for i, entry in enumerate(jobdesc):
+        njobs = njobs_of(entry)
+        if njobs is None:
+            continue  # skip generic tarball entries
+        if job_index < cumulative_jobs + njobs:
+            return entry, i, job_index - cumulative_jobs + firstjob_of(entry)
+        cumulative_jobs += njobs
+    return None, None, None
+
+
 def process_jobdef(jobdesc, fname, args):
     """Process a job in normal mode.
-    
+
     Args:
         jobdesc: List of job descriptions
         fname: Index filename
         args: Command line arguments (needs copy_input attribute)
-        
+
     Returns:
         tuple: (fcl, simjob_setup, infiles, outputs)
     """
@@ -506,32 +546,18 @@ def process_jobdef(jobdesc, fname, args):
     except RuntimeError as e:
         print(f"Error: {e}")
         sys.exit(1)
-    
+
     # Find which job description this job index belongs to
-    cumulative_jobs = 0
-    jobdesc_entry = None
-    jobdesc_index = None
-    
-    for i, entry in enumerate(jobdesc):
-        if 'njobs' not in entry:
-            continue  # skip generic tarball entries
-        if job_index < cumulative_jobs + entry['njobs']:
-            jobdesc_entry = entry
-            jobdesc_index = i
-            break
-        cumulative_jobs += entry['njobs']
-    
+    jobdesc_entry, jobdesc_index, job_index_num = resolve_map_index(jobdesc, job_index)
+
     if jobdesc_entry is None:
         total_jobs = sum(d.get('njobs', 0) for d in jobdesc)
         print(f"Error: Job index {job_index} out of range. Total jobs available: {total_jobs}")
         sys.exit(1)
-    
+
     print(f"Job {job_index} uses definition {jobdesc_index}")
-    print(f"Global job index: {job_index}, Local job index within definition: {job_index - cumulative_jobs}")
-    
-    # Calculate local job index within this specific job definition
-    job_index_num = job_index - cumulative_jobs
-    
+    print(f"Global job index: {job_index}, Local job index within definition: {job_index_num}")
+
     # Extract fields from JSON structure
     inloc = jobdesc_entry['inloc']
     tarball = jobdesc_entry['tarball']

@@ -541,3 +541,14 @@ sorted burst). Key tools: `with availability retired` + get-metadata by file_id
 (Retired Date faithful, calibrated), log-name epochs as round map, cnf jobpars
 index mapping. Page: [[2026-07-05-run1ban-mix-recovery-data-loss]]. Memory:
 reference_run1ban_mix_recovery_loss.
+
+## [2026-07-10] decision | firstjob index windows implemented
+POMS-map entries gained `firstjob` — windows an entry into cnf indices
+`[F, F+njobs)` so a dataset can be extended with fresh seeds
+(baseSeed = 1 + cnf index) while reusing the existing tarball; the old
+version/run-bump convention duplicates physics on same input and is
+retired for expansions. Dispatch arithmetic extracted into pure
+`resolve_map_index` (+21 unit tests); json2jobdef dedupe now
+(tarball, firstjob); mu2ejobsub backend emits `--firstjob/--njobs`;
+mkrecovery + db_builder window-aware. First use: MuStopPileup.Run1Ban
+5000→+N expansion. Page: [[2026-07-10-firstjob-index-windows]].

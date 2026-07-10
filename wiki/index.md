@@ -5,6 +5,7 @@
 - [[run1ban-campaign]] — Run1B-series campaign on SimJob `Run1Ban`; same `v40` + DS-off geometry as Run1Bak but rebuilds MuminusStopsCat self-contained via MuBeamResampler `TargetStops` side output → artcat → MuonStopSelector _(seeded 2026-06-07)_
 
 ### Incidents
+- [[2026-07-05-run1ban-mix-recovery-data-loss]] — 54 NoPrimaryMix1BB outputs lost: POMS re-queued complete work, pushOutput recoverDelay=3600 clobber-rewrites, 53 rewrites vanished off-grid _(investigated 2026-07-09)_
 <!-- entries added by wiki-ingest -->
 
 ### Decisions

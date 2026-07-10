@@ -528,3 +528,16 @@ templates/MDC2025/mix.json + data/{mdc2025,Run1B,mdc2030}/mix.json mixing entrie
 (outloc→tape unchanged; stash entries left as-is). Staged the 4 MDC2025 pileup
 Cats to resilient (~1470 files, ~156GB) and flipped inloc in POMS map MDC2025-032
 ar mix entries. Memory: reference_mixing_pileup_resilient_rule.
+
+## [2026-07-09] incident | Run1Ban mix 54-file loss — mechanism nailed
+Full SAM forensics of dig.mu2e.NoPrimaryMix1BB.Run1Ban_best_v1_4-000 (19946/20000).
+Four layers: POMS re-queued completed indices (51333 logs/20k outputs); pushOutput
+recoverDelay=3600s clobber-rewrote 6240 good outputs (books balance: 26239 records
+= 19999 originals + 6240 redeclares; 6293 retires = 6240 paired + 53 dangling);
+53 final rewrites (all written Jul 4 23:30–Jul 5 00:19 + one 03:46) vanished from
+dCache off-grid Jul 5–9 (no SAM trace; pool-loss-of-unflushed vs cleanup script —
+dCache billing decides); sweep retired the 53 danglers Jul 9 21:59:26–33Z (7/s,
+sorted burst). Key tools: `with availability retired` + get-metadata by file_id
+(Retired Date faithful, calibrated), log-name epochs as round map, cnf jobpars
+index mapping. Page: [[2026-07-05-run1ban-mix-recovery-data-loss]]. Memory:
+reference_run1ban_mix_recovery_loss.

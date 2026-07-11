@@ -85,4 +85,6 @@ mkrecovery,db_builder}.py`, tests in `test/test_unit.py` (§34),
   completed indices to recovery
 - [[2026-07-02-jobdef-arithmetic-and-tbs-njobs]] — capacity vs window
 - [[poms-reference]] — index-dataset dispatch machinery
-- [[run1ban-campaign]] — first intended use (MuStopPileup expansion)
+- [[run1ban-campaign]] — first use EXECUTED 2026-07-10: MuStopPileup
+  expansion, map `poms_map/Run1Ban-pileupext.json`, direct backend,
+  cluster 28708717 (5000 jobs, cnf indices 5000..9999)

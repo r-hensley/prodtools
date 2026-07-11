@@ -552,3 +552,93 @@ retired for expansions. Dispatch arithmetic extracted into pure
 (tarball, firstjob); mu2ejobsub backend emits `--firstjob/--njobs`;
 mkrecovery + db_builder window-aware. First use: MuStopPileup.Run1Ban
 5000→+N expansion. Page: [[2026-07-10-firstjob-index-windows]].
+
+## [2026-07-10] run | MuStopPileup.Run1Ban expansion submitted (firstjob first use)
+First production use of the firstjob index window: map
+poms_map/Run1Ban-pileupext.json (existing cnf.mu2e.MuStopPileup.Run1Ban-001.0.tar,
+firstjob=5000, njobs=5000, inloc=resilient) submitted via
+`submit_map --backend direct` as mu2epro → cluster 28708717 (5000 jobs,
+cnf indices 5000..9999 → baseSeed 5001..10000, sequencers 001470_00005000+).
+Pre-staged the 2 MuminusStopsCat.Run1Ban inputs to resilient (tape-custody,
+no resilient copy — June run rode the disk cache). Gotcha: jobsub under ksu
+needs USER/LOGNAME/HOME/XDG_RUNTIME_DIR re-exported for mu2epro or
+condor_vault_storer fails (first attempt submitted NOTHING despite rc=0 —
+verified via jobsub_q before retrying). Recovery will be manual mkrecovery
+(user choice); Cat step must APPEND. Page: [[2026-07-10-firstjob-index-windows]].
+
+## [2026-07-10] ops | pomsMonitor dashboard refreshed + render import fix
+`update_pomsmonitor_web` run (DB rebuilt from MDC202* maps; render step
+initially failed: bin/pomsMonitorWeb imported `locate_file` from
+utils.db_builder, removed by the 2026-07-06 SAM single-homing refactor —
+fixed to import from utils.samweb_wrapper). index.html 29.8 KB /
+jobs.json 503 KB (1024 jobs) published 13:01.
+
+## [2026-07-10] analysis | Run1Bai vs Run1Ban stop-rate drop decomposed (measured)
+StoppedParticlesDumper (leaves mode, TargetStopFilter) on one MuminusStopsCat
+file each (=1e9 resampled events both): ratio 2.56 = 1.58 halo suppression
+(v06 set Coll5 material=DSVacuum; 49.6% of Bai stops at r>128mm ending exactly
+at r=248 = Coll5 jacket radius; Ban halo/core 0.66 vs Bai 1.62) x 1.62
+core-level (1.14 Al thickness 20->17.5mm, ~1.4 beam-parent chain/release).
+NO stops beyond r~250 in either config (TS5 bore caps the envelope — the
+600mm wall area is irrelevant, as is "tracker-facing radii"). v40 mobile-target
+disk measured at z=4236-4250, BEHIND the plate hole (69% disk / 31% plate).
+SimEff2 flash x5 = x2.5 interception + ~x2 presumed poly-absorber (unmeasured).
+Also: Run1Bai SimEfficiencies2 textFile carries a live x100 eff-column typo
+(NeutralsFlashCat 7.196e-08 vs true 7.196e-06; Offline findEff consumes the
+eff column). Memory: reference_simeff2_eff_column_and_bai_typo.
+
+## [2026-07-10] incident | nightly extracted validation red since 07-02 (CRV channels)
+All 5 extracted jobs crash at first event with CRVCALIBMAKE_BAD_N_CHANNEL
+(geometry 2304 vs CRVSiPM/CRVTime 2048) since the 07/02 nightly. Cause:
+Offline#1864 (ehrlich-uva, merged 07-02 02:01 UTC) added muon taggers to the
+extracted/KPP CRV (+256 ch) with text calibs only — its own description says
+DB tables still needed. Nightly fcl reads CRV calib fromDb (Sim_best/v1_5).
+Fix: commit 2304-ch tables + extend Sim_best, or switch validation to
+epilog_extracted_v04 textFile calib. Logs:
+/pnfs/.../valjob2/YYYY/MM/DD/extracted/log/*_crashed. Memory:
+reference_extracted_nightly_crv_failure.
+
+## [2026-07-10] analysis | MuStopPileup G4 CPU anatomy (5-way + neutron decomposition)
+Measured (2k then 20k-event A/B on the Run1Ban cnf, local): g4run = 94% of job
+CPU at 0.75% pass rate; capture-NEUTRON transport = 85% of g4 time, sub-keV
+thermal walk = 42% of the whole job; soft photons free; minRangeCut -7% and
+distorts the calo-sum keep rate. Every neutron-trimming knob loses kept events
+proportionally (timecut100us -18%CPU/-13%kept; 1keV floor -42%/-22%; 1MeV
+-72%/-35%; combo=floor) — lost events are the thermal-capture-gamma calo
+class, so composition bias, not thinning. Conclusion: no free speedup;
+1 keV kineticEnergy floor (pdgId 2112 intersection) is the best-ratio option
+IF physics-blessed. Addendum: e+- 1 MeV floor tested (20k) — CPU -11% but
+kept -53% and CPU/kept WORSE than baseline (3.24 vs 1.69 s): it kills the
+sub-MeV terminal cascade of every calo shower (energy-scale corruption, not
+class removal). Never cut charged EM. Memory:
+reference_mustoppileup_g4_cpu_anatomy.
+
+## [2026-07-10] incident | Production#557 CI red — CRV_C3 enum vs frozen MDC2020 geometry
+All 8 CI physics tests (incl. POT) die at geometry load with "SurfaceIdEnum
+invalid enum name: CRV_C3". Root cause: new Offline KinKalGeomMaker (in
+GeometryService since the July trk2crv-material work) maps every CRV shield
+name to SurfaceId for every job; MDC2020-branch validation fcls pin frozen
+geom_common_MDC2020 -> geom_2021_PhaseI_v03 -> crv_counters_v09 (sector C3),
+while the modern enum dropped C3 (v10 CRV + M1-M8 taggers). PR is innocent
+(diff = output renames + database v1_5). Verified by local repro from the
+exact museCIBuild tree: geom_common_current rc=0, geom_common_MDC2020 rc=1.
+Fix: tolerant makeCRV upstream (or legacy enum entry). Memory:
+reference_mdc2020_ci_crv_c3_breakage.
+
+## [2026-07-11] research | POMS internals pass #2 (recovery machinery + Mu2e wiring)
+Source-level (fermitools/poms develop) + local recon. Closed 3 of 4 open
+questions from the 2026-04-28 pass (campaign_stages.dataset column;
+no map->def auto-derivation; update_campaign_stage payload). NEW substance:
+recovery types are JobType-attached ordered chains; ONLY pending_files
+verifies output existence (isparentof dims, output_ancestor_depth); the
+consumption-based types (process_status/consumed_status/
+delivered_not_consumed) re-dispatch finished work — Mu2e MDC2020 inis
+configure process_status x2 (mem bumps) = the Run1Ban L1 exposure at config
+level; POMS-native guard = switch chain to pending_files. Also: 'draining'
+split type is a NO-OP (exclusion lives in the SAM def text); completion
+'located' counts outputs (availability physical, create_date>submission) +
+2-day force-locate fallback. Mu2e wiring: poms_includes shims ->
+Production/CampaignConfig/mdc2025_*.cfg; one static stage_main_runjobdef
+serves every MDC2025-NNN.json via %(map)s; MDC2025 recovery config lives
+ONLY in the POMS DB (web-UI check = new open question #5). Page:
+[[poms-reference]] updated; stale prodtools/poms/ pointer corrected.

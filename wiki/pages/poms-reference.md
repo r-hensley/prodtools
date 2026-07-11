@@ -2,7 +2,7 @@
 title: POMS reference (FNAL Production Operations Management System)
 tags: [reference, infra, poms]
 sources: [2026-04-28-poms-architecture, 2026-04-28-poms-sam-wiring, 2026-04-28-poms-user-ops]
-updated: 2026-04-28
+updated: 2026-07-11
 ---
 
 # POMS reference
@@ -66,6 +66,67 @@ Schema: `ddl/poms_ddl.sql`. ORM: `webservice/poms_model.py`.
 7. **Recovery / cascade** — Configured recoveries re-dispatch failures.
    Once Located, downstream stages auto-launch.
 
+## Recovery machinery (verified from source, 2026-07-11 research pass)
+
+Recoveries are attached to the **JobType** (`campaign_recoveries`:
+job_type_id, recovery_type_id, `recovery_order`, param_overrides), not to
+the stage. After `wrapup_tasks` marks a submission Completed/Located it
+calls `launch_recovery_if_needed` (SubmissionsPOMS.py ~1765): walk the
+JobType's ordered recovery list from `submission.recovery_position`,
+build each type's recovery dataset, and launch the FIRST one with
+nfiles > 0 (`dataset_override=`, chained via `recovery_tasks_parent`).
+Dependents launch only when no recovery fires.
+
+Recovery types and the SAM dimensions they build
+(`SAMSpecifics.create_recovery_dataset` ~60-154):
+
+| Type | Dimension logic | Checks outputs exist? |
+|---|---|---|
+| `consumed_status` | snapshot minus consumed (`co%`) | **NO** — consumption bookkeeping only |
+| `proj_status` / `process_status` | SAM `recovery_dimensions` REST endpoint per project/process | **NO** |
+| `delivered_not_consumed` | delivered/skipped/unknown/... states | **NO** |
+| `added_files` | defname minus snapshot (new files since launch) | **NO** (different purpose) |
+| `pending_files` | snapshot **minus `isparentof:`(outputs matching version + create_date > submission)**, nested `output_ancestor_depth` deep | **YES** — SAM child declaration (not physical location) |
+
+**The Run1Ban incident, at config level**
+([[2026-07-05-run1ban-mix-recovery-data-loss]] L1): every type except
+`pending_files` re-dispatches parents whose outputs exist whenever SAM
+consumption state is incomplete (process killed after copyback but
+before `setStatus consumed`, project ended early, re-snapshot under a
+fresh project). Mu2e's MDC2020-era JobTypes configure
+`recoveries = [["process_status", mem=4GB], ["process_status", mem=8GB]]`
+(`Production/CampaignConfig/mdc2020_jobtypes.ini`) — i.e. the
+non-verifying kind. **POMS-native mitigation: configure the recovery
+chain to use `pending_files`** (child-existence guard;
+`output_ancestor_depth=1` is already the Mu2e default). The MDC2025
+JobType's recovery config lives only in the POMS DB (no .ini) — check
+it in the web UI before the next drain campaign.
+
+## Split types and completion
+
+`webservice/split_types/`: byexistingruns, byrun, draining, drainingn,
+limitn, list, mod, multiparam, new, nfiles, stagedfiles (+ parallel
+`dd_split_types/` for Data Dispatcher).
+
+- **`draining`** is a NO-OP in POMS: peek/next/prev all return
+  `campaign_stages.dataset` unchanged, forever, no state ("assumes you
+  have a draining/recursive definition"). All exclusion logic lives in
+  the SAM definition text — POMS contributes nothing. What counts as
+  "already done" is whatever the def says (typically `minus
+  consumed_status consumed`), i.e. consumption, not output existence.
+- `drainingn` is the snapshot-cursor variant: `defname:%s minus
+  snapshot_id %d with limit %d`, cursor kept in `cs_last_split` —
+  "delivered = was in a previous snapshot", independent of consumption.
+
+Completion (`wrapup_tasks`): while Running, `pct_complete >=
+completion_pct` promotes to Completed. `completion_type=complete`
+finishes there; `located` additionally counts OUTPUT files (dims with
+`availability physical`/`anylocation`, version match, `create_date >
+submission time`) against `tot_consumed * completion_pct/100` — plus a
+fallback that force-locates any submission older than **2 days**.
+Statuses: New → Idle → Running → Completed → Located (terminal;
+also Failed/Removed/Cancelled).
+
 ## Mu2e-specific conventions
 
 The Mu2e instance runs the upstream POMS code but layers conventions:
@@ -93,14 +154,41 @@ not tied to any campaign by content; **`iMDC2025-025` can be reused
 across stages** that just need N parallel dispatches. Confirmed
 by user 2026-04-28.
 
-### Dispatch decoupling possibility (unverified)
+### Campaign config layers (actual wiring, verified 2026-07-11)
 
-A POMS stage's SAM-def field is configurable per-stage (via web UI
-or `poms_client.update_campaign_stage()`). In principle, a stage
-can dispatch `G4BL-000.json` against `iMDC2025-025` without renaming
-either. **Not yet verified end-to-end** — the exact column name on
-`campaign_stages` and the precise `update_campaign_stage()` payload
-weren't pinned down by the 2026-04-28 research.
+There is no `prodtools/poms/` — the real config stack is:
+
+1. `production_manager/poms_includes/<campaign>.cfg` — thin
+   `[global] includes=` shims (e.g. `mdc2025ab.cfg`) pointing at →
+2. `Production/CampaignConfig/mdc2025_{prolog,main,fermigrid,nersc}.cfg`
+   — fife_launch layers: prolog = jobsub globals (`need-storage-modify`,
+   memory/disk, `[sam_consumer] appname=SimJob schema=xroot`); main =
+   the stages (`stage_main_digi/reco/evntuple/runjobdef/validation`);
+   fermigrid/nersc = site overrides.
+3. The map dispatch line (`mdc2025_main.cfg` `[stage_main_runjobdef]`):
+   `submit.f=dropbox://.../poms_map/%(map)s` +
+   `executable_1 = runjobdef --jobdefs $CONDOR_DIR_INPUT/%(map)s` —
+   one static stage serves every MDC2025-NNN.json via the `%(map)s`
+   POMS parameter; maps do NOT get their own campaigns.
+4. Worker side: `bin/runmu2e` POMS mode reads the map + per-job index
+   file and `process_jobdef()` materializes the fcl.
+
+MDC2020-era campaigns used full `.ini` files (`mdc2020_jobtypes.ini`
+etc., uploaded via `poms_client --upload_wf`); for MDC2025 the
+stage/recovery/completion settings live only in the POMS DB (edited via
+web UI — nothing local records them). No POMS cron runs on Mu2e nodes;
+scheduling is entirely server-side at FNAL (local cron only renews
+kerberos/tokens/metacat credentials).
+
+### Dispatch decoupling (now verified at API level)
+
+A stage's SAM-def field is the **`dataset`** column on
+`campaign_stages`, editable via
+`poms_client.update_campaign_stage(campaign_stage, experiment=...,
+dataset=...)` (kwargs ride the POST) or the full
+`campaign_stage_edit(...)`. A stage can therefore dispatch any map
+against any `i<stem>` def without renaming either. End-to-end on the
+Mu2e instance: still untested.
 
 ## User operations
 
@@ -162,17 +250,26 @@ pc.upload_file('mymap.json')
 | Stage dispatches N workers but 0 outputs | SAM dataset has 0 matching files; check `samweb count-files defname:i<stem>` |
 | `samweb create-definition` redirect-loop | Token-auth path issue; **never** fall back to `voms-proxy-init` (Mu2e migrated to bearer tokens) — see `feedback_no_voms_proxy_init` |
 
-## Open questions (need verification on the running instance)
+## Open questions — status after the 2026-07-11 source pass
 
-1. **Exact column on `campaign_stages`** holding the SAM-def name
-   (likely `dataset` or `cs_dataset` — check via `\d campaign_stages`
-   on the POMS DB).
-2. **Whether map filename auto-derives the stage's SAM def** by some
-   POMS convention, or only via Mu2e tooling glue.
-3. **`poms_client.update_campaign_stage()` exact payload** for
-   changing the SAM def of an existing stage.
-4. **Whether the running Mu2e POMS instance permits stages to use
-   shared/reused SAM defs** without admin intervention.
+1. ~~Column on `campaign_stages`~~ **ANSWERED**: plain `dataset` (Text),
+   alongside `cs_split_type`, `cs_last_split` (split cursor),
+   `completion_type`, `completion_pct` (webservice/poms_model.py; the
+   old `ddl/poms_ddl.sql` is the pre-rename tasks/jobs schema — ignore).
+2. ~~Map filename → SAM def auto-derivation~~ **ANSWERED**: no POMS
+   convention; pure Mu2e glue (`mkidxdef` names `i<stem>`, a human
+   config binds the stage's `dataset` + `%(map)s` param).
+3. ~~update_campaign_stage payload~~ **ANSWERED**: kwargs on
+   `update_campaign_stage(campaign_stage, experiment, role, ...,
+   dataset=...)`; full-edit alternative `campaign_stage_edit(action,
+   campaign_id, ae_stage_name, ..., dataset, ae_split_type,
+   ae_completion_type, ae_completion_pct, ...)`.
+4. **STILL OPEN**: whether the running Mu2e instance permits shared
+   SAM defs across stages without admin help (API says yes; untested).
+5. **NEW**: what recovery chain the MDC2025 JobType has in the POMS DB
+   (web UI check) — if it is `process_status`/`consumed_status`-based
+   like the MDC2020 inis, the [[2026-07-05-run1ban-mix-recovery-data-loss]]
+   L1 exposure is still armed; `pending_files` is the POMS-native guard.
 
 ## Pointers
 
@@ -184,5 +281,6 @@ pc.upload_file('mymap.json')
 ## Related local pages
 
 - [[pbi-sequence-workflow]] — concrete example of `MDC2025-025.json` map + iMDC2025-025 + Stage 3 reco dispatch
-- `poms/main.cfg`, `poms/prolog.cfg`, `poms/fermigrid.cfg` in this repo — Mu2e-specific POMS submit configs (a `poms/g4bl.cfg` existed briefly to set an SL7 outer container; retired 2026-04-28 once g4bl gained a native AL9 spack build)
+- [[2026-07-05-run1ban-mix-recovery-data-loss]] — the recovery machinery's failure mode in production
+- `Production/CampaignConfig/mdc2025_{prolog,main,fermigrid}.cfg` + `production_manager/poms_includes/*.cfg` — the actual Mu2e campaign config stack (NOTE: `prodtools/poms/` does not exist; an earlier version of this page pointed there)
 - `bin/mkidxdef` + `utils/mkidxdef.py` — the Mu2e i<stem> tool

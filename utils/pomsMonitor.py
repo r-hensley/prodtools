@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.db_builder import build_db
 from utils.db_analyzer import list_jobs, get_default_db_path, ignore_dataset, unignore_dataset, list_ignored
 from utils.poms_db import get_db_session
+from utils.job_common import Mu2eName
 
 
 def _parse_since(since_str):
@@ -67,11 +68,11 @@ def uniformity_report(session, campaign, target, round_to=1000):
         eff = r.filter_eff
         raw = target / eff if eff > 0 else 0
         ev = max(round_to, round(raw / round_to) * round_to) if eff > 0 else 0
-        desc = r.dataset_name.split('.')[2]
+        desc = Mu2eName.parse(r.dataset_name).description
         print(f"{desc:<24}{eff:>9.4f}{r.nevts / r.nfiles:>11,.0f}{ev:>14,}")
 
     for r in missing:
-        print(f"# no gencount (skipped): {r.dataset_name.split('.')[2]} "
+        print(f"# no gencount (skipped): {Mu2eName.parse(r.dataset_name).description} "
               f"(dts not produced, or no dh.gencount)", file=sys.stderr)
 
 

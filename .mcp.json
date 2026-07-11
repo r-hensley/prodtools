@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "metacat-readonly": {
+      "command": "/exp/mu2e/app/users/oksuzian/muse_050125/aitools/mcp/metacat/scripts/start_mcp.sh"
+    }
+  }
+}

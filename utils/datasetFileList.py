@@ -12,30 +12,22 @@ from pathlib import Path
 
 # Handle both module and standalone imports
 try:
-    from .job_common import get_samweb_wrapper, Mu2eName
+    from .job_common import Mu2eName
+    from .file_resolver import path_from_sam_location
+    from .samweb_wrapper import get_samweb_wrapper
 except ImportError:
     # When running as standalone script
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from utils.job_common import get_samweb_wrapper, Mu2eName
+    from utils.job_common import Mu2eName
+    from utils.file_resolver import path_from_sam_location
+    from utils.samweb_wrapper import get_samweb_wrapper
 
 
 def _dataset_dir(dsname: str, location: str) -> str:
     """Absolute /pnfs directory for a Mu2e dataset at the given location.
-
-    Uses Mu2eName.tier_class (the authoritative tier→owner-class map) to
-    derive the `phy-<class>` prefix. Returns '' for unknown locations.
-    """
-    n = Mu2eName.parse(dsname)
-    owner_prefix = "phy" if n.owner == "mu2e" else "usr"
-    base_path = f"{owner_prefix}-{n.tier_class}"
-    ds_path = dsname.replace('.', '/')
-    if location == 'disk':
-        return f"/pnfs/mu2e/persistent/datasets/{base_path}/{ds_path}"
-    if location == 'tape':
-        return f"/pnfs/mu2e/tape/{base_path}/{ds_path}"
-    if location == 'scratch':
-        return f"/pnfs/mu2e/scratch/datasets/{base_path}/{ds_path}"
-    return ""
+    Delegates to file_resolver.dataset_dir (the layout's single home)."""
+    from utils.file_resolver import dataset_dir
+    return dataset_dir(dsname, location)
 
 def parse_args():
     """Parse command line arguments exactly like the Perl version."""
@@ -119,8 +111,8 @@ def get_dataset_files(dataset_name: str, location: Optional[str] = None) -> List
     
     # Get files from SAM
     samweb = get_samweb_wrapper()
-    fns = samweb.list_files(f"dh.dataset {dataset_name}")
-    
+    fns = samweb.files_in_dataset(dataset_name)
+
     if not fns:
         raise RuntimeError(f"No files with dh.dataset={dataset_name} are registered in SAM.")
     
@@ -159,34 +151,24 @@ def get_definition_files(definition_name: str) -> List[str]:
         List of full file paths
     """
     samweb = get_samweb_wrapper()
-    fns = samweb.list_definition_files(definition_name)
-    
+    fns = sorted(samweb.list_definition_files(definition_name))
+
+    # One SAM round-trip for the whole definition (thousands of files for
+    # log datasets) instead of one locate per file.
+    try:
+        locations_map = samweb.locate_files(fns) if fns else {}
+    except Exception:
+        locations_map = {}
+
     file_paths = []
-    for f in sorted(fns):
-        try:
-            locations = samweb.locate_files([f])
-            
-            if f not in locations or not locations[f]:
+    for f in fns:
+        for location_info in locations_map.get(f) or []:
+            try:
+                file_paths.append(path_from_sam_location(f, location_info))
+                break  # Take first valid location
+            except ValueError:
                 continue
-            
-            for location_info in locations[f]:
-                if not isinstance(location_info, dict) or 'full_path' not in location_info:
-                    continue
-                
-                full_path = location_info['full_path']
-                
-                # Remove storage system prefixes
-                from utils.job_common import remove_storage_prefix
-                full_path = remove_storage_prefix(full_path)
-                
-                if full_path.startswith('/'):
-                    final_path = os.path.join(full_path, f)
-                    file_paths.append(final_path)
-                    break  # Take first valid location
-                    
-        except Exception:
-            continue
-    
+
     return file_paths
 
 def main():
@@ -197,7 +179,7 @@ def main():
     # Handle --basename mode (just print filenames)
     if args.basename:
         samweb = get_samweb_wrapper()
-        fns = samweb.list_files(f"dh.dataset {dsname}")
+        fns = samweb.files_in_dataset(dsname)
         for f in sorted(fns):
             try:
                 print(f)

@@ -26,13 +26,11 @@ import tarfile
 from typing import Dict, List, Tuple, Optional, Any
 
 from utils.config_utils import get_tarball_desc
-from utils.job_common import Mu2eName
+from utils.job_common import Mu2eName, default_owner, tbs_capacity
 
 # Constants matching Perl mu2ejobdef exactly
 FILENAME_JSON = 'jobpars.json'
 FILENAME_FCL = 'mu2e.fcl'
-FILENAME_TARBALL = 'code.tar'
-FILENAME_TARSETUP = 'Code/setup.sh'
 
 
 def resolve_fhicl_file(templatespec: str) -> str:
@@ -117,27 +115,13 @@ def _seed_needed(template_path: str) -> bool:
     
     Matches Perl seedNeeded() function exactly: checks services.SeedService.baseSeed.
     """
-    # Go one level up from the seed field name in fclkey_randomSeed to
-    # the module name in $tablename (matches Perl logic exactly)
-    # Perl: my @elements = split(/\./, fclkey_randomSeed);
-    #       pop @elements; # seed name
-    #       my $ssname = pop @elements;
-    #       my $tablename = join('.', @elements);
-    
-    fclkey_randomSeed = 'services.SeedService.baseSeed'
-    elements = fclkey_randomSeed.split('.')
-    elements.pop()  # Remove 'baseSeed'
-    ssname = elements.pop()  # Remove 'SeedService'
-    tablename = '.'.join(elements)  # 'services'
-    
-    # Perl: my @svclist = `fhicl-get --names-in $tablename $filename 2>/dev/null`;
-    #       return 0 + grep /^$ssname\z/, @svclist;
+    # Perl: my @svclist = `fhicl-get --names-in services $filename 2>/dev/null`;
+    #       return 0 + grep /^SeedService\z/, @svclist;
     try:
-        svclist = _run_fhicl_get(template_path, '--names-in', tablename)
-        service_list = svclist.split('\n')
-        # Return count of exact matches (like Perl's 0 + grep)
-        return sum(1 for service in service_list if service == ssname)
-    except:
+        svclist = _run_fhicl_get(template_path, '--names-in', 'services')
+        # Count of exact matches (like Perl's 0 + grep)
+        return sum(1 for service in svclist.split('\n') if service == 'SeedService')
+    except Exception:
         # If fhicl-get fails, return 0 (like Perl's 2>/dev/null behavior)
         return 0
 
@@ -173,23 +157,14 @@ def _get_output_modules(template_path: str) -> List[str]:
             continue
         
         # Get modules in this end path
-        # Handle both cases: end_paths contains names or values
         try:
             mods = _run_fhicl_get(template_path, '--sequence-of', f'physics.{ep}').split('\n')
             for m in mods:
                 if m:  # Skip empty entries
                     endmodules.add(m)
-        except:
-            # If this fails, the end path name might be the actual end path
-            # Try to get modules directly from the end path name
-            try:
-                mods = _run_fhicl_get(template_path, '--sequence-of', f'physics.{ep}').split('\n')
-                for m in mods:
-                    if m:  # Skip empty entries
-                        endmodules.add(m)
-            except:
-                # If both fail, skip this end path
-                continue
+        except Exception:
+            # If this fails, skip this end path
+            continue
     
     # Only return output modules that are in active end paths
     # Perl: my @active_outmods = grep { $endmodules{$_} } @all_outmods;
@@ -227,17 +202,17 @@ def _validate_fcl_template(template_path: str) -> None:
         raise ValueError(f"FCL template missing required physics sections: {missing_keys}")
 
 
-def _build_jobpars_json(config: Dict, tbs: Dict, code: str = "", template_path: str = "") -> Dict:
+def _build_jobpars_json(config: Dict, tbs: Dict, code: str = "") -> Dict:
     """Construct complete jobpars.json structure matching Perl mu2ejobdef exactly."""
-    owner = config.get('owner') or os.getenv('USER', 'mu2e').replace('mu2epro', 'mu2e')
+    owner = config.get('owner') or default_owner()
     desc = get_tarball_desc(config) or config['desc']
     dsconf = config['dsconf']
     
     # Build proper jobname like Perl version (cnf.owner.desc.dsconf.VERSION.tar)
     version = config.get('version', 0)
-    jobname = f"cnf.{owner}.{desc}.{dsconf}.{version}.tar"
+    jobname = str(Mu2eName.build(tier='cnf', owner=owner, description=desc,
+                                 dsconf=dsconf, sequencer=str(version), extension='tar'))
 
-    # Reorder TBS fields to match Perl exactly: seed, subrunkey, event_id, outfiles
     # Reorder TBS fields to match Perl exactly: seed, subrunkey, event_id, outfiles
     ordered_tbs = {}
     perl_tbs_order = ['seed', 'subrunkey', 'event_id', 'outfiles']
@@ -265,6 +240,33 @@ def _read_filelist(path: str) -> List[str]:
     """Read file list, filtering out empty lines."""
     with open(path) as f:
         return [line.strip() for line in f if line.strip()]
+
+
+def _resolve_njobs(config: Dict, tbs: Dict) -> Optional[int]:
+    """Job count to embed as tbs.njobs (tarball self-description).
+
+    The declared config value wins after validation against the capacity
+    derived from the frozen input lists; -1 or absent means "use derived".
+    Returns None when the count is unknowable (generator without a declared
+    njobs, generic tarball) — the key is then omitted and readers treat the
+    jobdef as open-ended (job count is a submit-time decision, authoritative
+    in the POMS map).
+    """
+    if config.get('generic_tarball'):
+        return None
+
+    capacity = tbs_capacity(tbs)
+
+    declared = config.get('njobs')
+    if declared is None or declared == -1:
+        return capacity
+    declared = int(declared)
+    if capacity is not None and declared > capacity:
+        raise ValueError(
+            f"njobs={declared} exceeds the {capacity} jobs supported by the "
+            f"input file list; indices past {capacity - 1} would fail at runtime "
+            f"with job_primary_inputs(): invalid index")
+    return declared
 
 
 def _validate_options_for_source_type(source_type: str, args_state: Dict) -> None:
@@ -359,15 +361,13 @@ def _validate_options_for_source_type(source_type: str, args_state: Dict) -> Non
             raise ValueError(f"Error: --events-per-job is not compatible with fcl files that use source type {source_type}.")
 
 
-def _parse_job_args(job_args: List[str], template_path: str, config: Dict = None) -> Tuple[Dict, str, bool]:
+def _parse_job_args(job_args: List[str], template_path: str, config: Dict = None) -> Dict:
     """
     Parse mu2ejobdef CLI options and build complete TBS structure.
-    Returns: (tbs_dict, outdir, override_output_description)
+    Returns the tbs dict. Unknown tokens are ignored (historical behavior).
     """
     tbs: Dict[str, Any] = {}
-    it = iter(job_args)
-    
-    # Parse all arguments using a dispatch table
+
     args_state = {
         'inputs_list': [],
         'merge_factor': 1,
@@ -375,64 +375,37 @@ def _parse_job_args(job_args: List[str], template_path: str, config: Dict = None
         'sampling': {},
         'run_number': None,
         'events_per_job': None,
-        'outdir': None,
-        'override_output_description': False,
         'fcl_mode': None,
         'fcl_template': None
     }
-    
-    def parse_auxinput(spec: str) -> Tuple[str, int, List[str]]:
-        """Parse auxinput specification: count:key:filelist"""
+
+    def parse_counted_filelist(spec: str) -> Tuple[str, int, List[str]]:
+        """Parse count:key:filelist (auxinput) / count:dsname:filelist
+        (samplinginput) — same grammar for both."""
         n_str, key, filelist = spec.split(':', 2)
         all_files = _read_filelist(filelist)
         nreq = len(all_files) if n_str == 'all' else int(n_str)
         return key, nreq, all_files
-    
-    def parse_samplinginput(spec: str) -> Tuple[str, int, List[str]]:
-        """Parse samplinginput specification: count:dsname:filelist"""
-        n_str, dsname, filelist = spec.split(':', 2)
-        all_files = _read_filelist(filelist)
-        nreq = len(all_files) if n_str == 'all' else int(n_str)
-        return dsname, nreq, all_files
-    
-    # Argument parsing dispatch table
-    arg_handlers = {
-        '--inputs': lambda: _read_filelist(next(it)),
-        '--merge-factor': lambda: int(next(it)),
-        '--auxinput': lambda: parse_auxinput(next(it)),
-        '--samplinginput': lambda: parse_samplinginput(next(it)),
-        '--run-number': lambda: int(next(it)),
-        '--events-per-job': lambda: int(next(it)),
-        '--outdir': lambda: next(it),
-        '--override-output-description': lambda: True,
-        '--embed': lambda: ('embed', next(it)),
-        '--include': lambda: ('include', next(it))
-    }
-    
+
+    it = iter(job_args)
     for token in it:
-        if token in arg_handlers:
-            result = arg_handlers[token]()
-            if token == '--auxinput':
-                key, nreq, files = result
-                args_state['auxin'][key] = (nreq, files)
-            elif token == '--samplinginput':
-                dsname, nreq, files = result
-                args_state['sampling'][dsname] = (nreq, files)
-            elif token in ['--embed', '--include']:
-                args_state['fcl_mode'], args_state['fcl_template'] = result
-            elif token == '--override-output-description':
-                args_state['override_output_description'] = result
-            else:
-                # Map argument names to state keys
-                key_map = {
-                    '--inputs': 'inputs_list',
-                    '--merge-factor': 'merge_factor', 
-                    '--run-number': 'run_number',
-                    '--events-per-job': 'events_per_job',
-                    '--outdir': 'outdir'
-                }
-                if token in key_map:
-                    args_state[key_map[token]] = result
+        if token == '--inputs':
+            args_state['inputs_list'] = _read_filelist(next(it))
+        elif token == '--merge-factor':
+            args_state['merge_factor'] = int(next(it))
+        elif token == '--auxinput':
+            key, nreq, files = parse_counted_filelist(next(it))
+            args_state['auxin'][key] = (nreq, files)
+        elif token == '--samplinginput':
+            dsname, nreq, files = parse_counted_filelist(next(it))
+            args_state['sampling'][dsname] = (nreq, files)
+        elif token == '--run-number':
+            args_state['run_number'] = int(next(it))
+        elif token == '--events-per-job':
+            args_state['events_per_job'] = int(next(it))
+        elif token in ('--embed', '--include'):
+            args_state['fcl_mode'] = token[2:]
+            args_state['fcl_template'] = next(it)
 
     # Determine source type using the resolved template path (like Perl's $templateresolved)
     source_type = _get_source_type(template_path)
@@ -594,7 +567,7 @@ def _parse_job_args(job_args: List[str], template_path: str, config: Dict = None
         if key not in ordered_tbs:
             ordered_tbs[key] = value
 
-    return ordered_tbs, None, args_state['override_output_description']
+    return ordered_tbs
 
 
 def get_output_dataset_names(config: Dict) -> List[str]:
@@ -645,7 +618,7 @@ def create_jobdef(config: Dict, fcl_path: str = 'template.fcl', job_args: List[s
     - Processes all source types, output files, seeds, etc.
     - Returns Path to the created file
     """
-    owner = config.get('owner') or os.getenv('USER', 'mu2e').replace('mu2epro', 'mu2e')
+    owner = config.get('owner') or default_owner()
     
     # Handle auto-description
     if config.get('auto_description') is not None:
@@ -716,20 +689,29 @@ def create_jobdef(config: Dict, fcl_path: str = 'template.fcl', job_args: List[s
         print(' '.join(cmd_parts))
 
     # Parse job arguments and build TBS with template analysis using the resolved template path (like Perl's $templateresolved)
-    tbs, _, override_output_description = _parse_job_args(all_args, template_path, config)
+    tbs = _parse_job_args(all_args, template_path, config)
+
+    # Embed the resolved job count so the tarball is self-descriptive.
+    # Absent tbs.njobs = open-ended (generic tarball, or generator with no
+    # declared count); readers then fall back to the POMS map.
+    embedded_njobs = _resolve_njobs(config, tbs)
+    if embedded_njobs is not None:
+        tbs['njobs'] = embedded_njobs
     
     # Use provided outdir (simple logic matching Perl version)
     # Use tarball_append if specified, otherwise use original desc
     final_desc = get_tarball_desc(config) or desc
     version = config.get('version', 0)
     final_outdir = Path(outdir) if outdir else None
-    out = final_outdir / f"cnf.{owner}.{final_desc}.{dsconf}.{version}.tar" if final_outdir else Path(f"cnf.{owner}.{final_desc}.{dsconf}.{version}.tar")
+    out_name = str(Mu2eName.build(tier='cnf', owner=owner, description=final_desc,
+                                  dsconf=dsconf, sequencer=str(version), extension='tar'))
+    out = final_outdir / out_name if final_outdir else Path(out_name)
 
     if out.exists():
         out.unlink()
 
     # Build complete jobpars JSON
-    jobpars = _build_jobpars_json(config, tbs, code="", template_path=template_path)
+    jobpars = _build_jobpars_json(config, tbs, code="")
 
     # Prepare temporary files
     temp_files = {}
@@ -811,8 +793,7 @@ Examples:
            --embed Production/JobConfig/mixing/Mix.fcl \\
            --auxinput "1:physics.filters.MuBeamFlashMixer.fileNames:mubeamCat.txt" \\
            --auxinput "25:physics.filters.EleBeamFlashMixer.fileNames:elebeamCat.txt" \\
-           --samplinginput "10:dataset1:sampling1.txt" \\
-           --override-output-description
+           --samplinginput "10:dataset1:sampling1.txt"
 
 Note: For EmptyEvent source type, --run-number and --events-per-job are required, 
       and --inputs/--merge-factor are not allowed.
@@ -860,8 +841,6 @@ Note: For EmptyEvent source type, --run-number and --events-per-job are required
                        help='Auxiliary input specification (format: count:key:filelist)')
     parser.add_argument('--samplinginput', action='append', metavar='SPEC',
                        help='Sampling input specification (format: count:dsname:filelist)')
-    parser.add_argument('--override-output-description', action='store_true',
-                       help='Override output file descriptions with job description')
     parser.add_argument('--verbose', action='store_true',
                        help='Enable verbose output')
     parser.add_argument('--output-dir', metavar='DIR',
@@ -894,7 +873,10 @@ Note: For EmptyEvent source type, --run-number and --events-per-job are required
     if args.auxinput:
         for aux in args.auxinput:
             job_args.extend(['--auxinput', aux])
-    
+    if args.samplinginput:
+        for spec in args.samplinginput:
+            job_args.extend(['--samplinginput', spec])
+
     # Determine FCL path and embed mode
     fcl_path = args.embed or args.include
     embed_mode = 'embed' if args.embed else 'include'

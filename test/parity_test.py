@@ -140,13 +140,13 @@ def main():
         epilog="""
 Examples:
   # Test all configurations in mix.json
-  python parity_test.py --json ../data/mix.json
+  python parity_test.py --json ../data/mdc2025/mix.json
   
   # Test only the first configuration (index 0)
-  python parity_test.py --json ../data/mix.json --index 0
+  python parity_test.py --json ../data/mdc2025/mix.json --index 0
   
   # Test only the third configuration (index 2)
-  python parity_test.py --json ../data/mix.json --index 2
+  python parity_test.py --json ../data/mdc2025/mix.json --index 2
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter
     )

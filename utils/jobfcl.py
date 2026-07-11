@@ -5,29 +5,16 @@ Generates FCL configuration files for Mu2e jobs.
 """
 
 import argparse
-import json
 import os
 import sys
-import tarfile
-from pathlib import Path
 from typing import Dict, List, Optional, Union
 import re
 
 # Allow running this file directly: make package root importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.job_common import Mu2eName, Mu2eJobBase, remove_storage_prefix
-import samweb_client  # type: ignore
-
-STASH_READ_ROOT = os.environ.get(
-    "MU2E_STASH_READ",
-    "/cvmfs/mu2e.osgstorage.org/pnfs/fnal.gov/usr/mu2e/persistent/stash"
-)
-
-RESILIENT_ROOT = os.environ.get(
-    "MU2E_RESILIENT",
-    "/pnfs/mu2e/resilient"
-)
+from utils.job_common import Mu2eName, Mu2eJobBase
+from utils.file_resolver import FileResolver
 
 
 _OUTPUT_FILENAME_KEY_RE = re.compile(r'^outputs\.\w+\.fileName$')
@@ -60,38 +47,15 @@ def validate_output_filenames(jobdef_path: str, index: int = 0) -> None:
     _check_output_filenames_substituted(job_fcl.job_outputs(index), jobdef_name=jobdef_path)
 
 
-def _resilient_file_exists(pnfs_path: str) -> bool:
-    """Check if a resilient /pnfs/ file exists via gfal2 xrootd.
-
-    Uses gfal2 Python bindings for reliable xrootd access that works on both
-    interactive nodes and grid worker nodes (no POSIX dCache required).
-    Returns False if gfal2 is unavailable or the stat fails, causing the
-    caller to fall through to SAM lookup.
-    """
-    # Convert /pnfs/... to xrootd URL: root://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/...
-    xroot_url = pnfs_path.replace('/pnfs/', 'root://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/', 1)
-    try:
-        import gfal2
-        ctx = gfal2.creat_context()
-        ctx.stat(xroot_url)
-        return True
-    except Exception:
-        return False
-
 class Mu2eJobFCL(Mu2eJobBase):
     """Python port of mu2ejobfcl functionality."""
-    
+
     def __init__(self, jobdef: str, inloc: str = 'tape', proto: str = 'file'):
         """Initialize with job definition file."""
         super().__init__(jobdef)
         self.inloc = inloc
         self.proto = proto
-
-        # Extract owner and dsconf directly from JSON fields
-        # Use same default logic as mu2ejobdef.py for consistency
-        default_owner = os.getenv('USER', 'mu2e').replace('mu2epro', 'mu2e')
-        self.owner = self.json_data.get('owner', default_owner)
-        self.dsconf = self.json_data.get('dsconf', 'unknown')
+        self._resolver = FileResolver(inloc=inloc, proto=proto)
 
         # Cache the source type detection
         self._source_type = None
@@ -113,277 +77,19 @@ class Mu2eJobFCL(Mu2eJobBase):
         return self._source_type
     
     def _extract_fcl(self) -> str:
-        """Extract mu2e.fcl from tar file."""
-        with tarfile.open(self.jobdef, 'r') as tar:
-            # Find mu2e.fcl member
-            fcl_member = None
-            for member in tar.getmembers():
-                if member.name.endswith('mu2e.fcl'):
-                    fcl_member = member
-                    break
-            
-            if not fcl_member:
-                raise ValueError(f"mu2e.fcl not found in {self.jobdef}")
-            
-            # Extract and return FCL content
-            fcl_file = tar.extractfile(fcl_member)
-            return fcl_file.read().decode('utf-8')
+        """Extract mu2e.fcl from the tarball."""
+        return self._extract_member('mu2e.fcl').decode('utf-8')
     
 
     
     def _locate_file(self, filename: str) -> str:
-        """Locate a file using samweb and return its physical path."""
-        # Check if we're using a local directory (dir: prefix)
-        if self.inloc.startswith('dir:'):
-            # Extract the local directory path
-            local_dir = self.inloc[4:]  # Remove 'dir:' prefix
-            # Remove trailing slash if present
-            local_dir = local_dir.rstrip('/')
-            return f"{local_dir}/{filename}"
+        """Locate a file and return its physical path (see FileResolver)."""
+        return self._resolver.locate(filename)
 
-        # Resolve stash path from filename — no SAM involved
-        # If file not found on stash, fall back to SAM-based lookup
-        if self.inloc == 'stash':
-            ds_path = str(Mu2eName.parse(filename).dataset).replace('.', '/')
-            stash_path = f"{STASH_READ_ROOT}/datasets/{ds_path}/{filename}"
-            if os.path.exists(stash_path):
-                return stash_path
-            # File not on stash — fall through to SAM lookup
-
-        if self.inloc == 'resilient':
-            ds_path = str(Mu2eName.parse(filename).dataset).replace('.', '/')
-            resilient_path = f"{RESILIENT_ROOT}/datasets/{ds_path}/{filename}"
-            if _resilient_file_exists(resilient_path):
-                return resilient_path
-            # File not on resilient — fall through to SAM lookup
-
-        # Use SAM to locate the file - get all locations
-        sam = samweb_client.SAMWebClient(experiment='mu2e')
-        
-        try:
-            locations = sam.locateFile(filename)
-        except Exception as e:
-            raise ValueError(f"Could not locate file: {filename}: {e}")
-        
-        if not locations:
-            raise ValueError(f"Could not locate file: {filename}")
-        
-        # Filter locations by requested location type (disk/tape)
-        # Each location is a dict with 'location_type' and 'full_path'
-        preferred_locations = [loc for loc in locations if loc.get('location_type') == self.inloc]
-        
-        # Use preferred location if available, otherwise fall back to first available
-        if preferred_locations:
-            selected_location = preferred_locations[0]
-        else:
-            # Fallback to any available location
-            selected_location = locations[0]
-        
-        # Extract the full path
-        path = selected_location.get('full_path', '')
-        if not path:
-            raise ValueError(f"Could not determine path for file: {filename}")
-        
-        return path
-    
     def _format_filename(self, filename: str) -> str:
-        """Format filename according to protocol."""
-        # Stash paths are always plain CVMFS paths — ignore proto
-        # _locate_file handles stash-with-fallback: if file is on stash,
-        # it returns a CVMFS path; otherwise falls back to SAM (tape/disk)
-        if self.inloc == 'stash':
-            path = self._locate_file(filename)
-            # If path is a stash CVMFS path, return as-is (no xroot needed)
-            if path.startswith(STASH_READ_ROOT):
-                return path
-            # Fell back to SAM — apply root protocol below
-            physical_path = path
-        elif self.inloc == 'resilient':
-            # Resilient disk has no CVMFS mirror — always use xrootd
-            physical_path = self._locate_file(filename)
-        elif self.proto == 'file':
-            return self._locate_file(filename)
-        
-        elif self.proto != 'root':
-            return filename
-        else:
-            # For root protocol, get physical path
-            physical_path = self._locate_file(filename)
-        
-        # Clean up location format prefixes
-        clean_path = remove_storage_prefix(physical_path)
-        
-        # Remove file location suffix like (2290@fm4794l8) if present
-        clean_path = re.sub(r'\([^)]+\)$', '', clean_path)
-        
-        # Add filename if not already present
-        if not clean_path.endswith(filename):
-            clean_path = clean_path + '/' + filename
-        
-        # Apply xroot transformation to /pnfs/ paths 
-        if clean_path.startswith('/pnfs/'):
-            return clean_path.replace(
-                '/pnfs/', 
-                'xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/', 
-                1
-            )
-        
-        # If path doesn't start with /pnfs/, raise error
-        raise ValueError(
-            f"Error: root protocol requested but a file pathname does not start with /pnfs: {clean_path}"
-        )
-    
-    def sequencer(self, index: int) -> str:
-        """Get sequencer for job index."""
-        tbs = self.json_data.get('tbs', {})
-        
-        # Check for explicit run number in event_id. Different source types
-        # use different FCL parameter names for the run number:
-        #   EmptyEvent / RootInput → source.firstRun
-        #   SamplingInput          → source.run
-        #   PBISequence            → source.runNumber
-        event_id = tbs.get('event_id', {})
-        run = (event_id.get('source.firstRun')
-               or event_id.get('source.run')
-               or event_id.get('source.runNumber'))
-        if run:
-            return f"{run:06d}_{index:08d}"
-        
-        # Get sequencers from primary input files
-        primary_inputs = self.job_primary_inputs(index)
-        if not primary_inputs:
-            raise ValueError("Error: get_sequencer(): unsupported JSON content")
-        
-        sequencers = []
-        for dataset, files in primary_inputs.items():
-            for filename in files:
-                sequencers.append(Mu2eName.parse(filename).sequencer)
-        
-        if not sequencers:
-            raise ValueError("Error: get_sequencer(): no sequencers found in input files")
-        
-        # Sort and get first sequencer
-        sequencers.sort()
-        parent_sequencer = sequencers[0]
-        
-        # If sequencer_from_index is enabled, extract run number and use index as subrun
-        if tbs.get('sequencer_from_index', False) and '_' in parent_sequencer:
-            parent_run = parent_sequencer.split('_')[0]
-            return f"{parent_run}_{index:08d}"
-        
-        # Otherwise, use the sequencer from input files directly
-        return parent_sequencer
-    
-    def job_outputs(self, index: int,
-                    override_desc: str = None,
-                    override_seq: str = None) -> Dict[str, str]:
-        """Get output files for job index.
+        """Format filename according to protocol (see FileResolver)."""
+        return self._resolver.url(filename)
 
-        override_desc: if provided, substitute {desc} in outfile patterns.
-                       Used in direct-input mode where desc comes from fname.
-        override_seq:  if provided, use this sequencer instead of computing
-                       from input files. Used in direct-input mode.
-        """
-        tbs = self.json_data.get('tbs', {})
-        outfiles = tbs.get('outfiles')
-
-        if not outfiles:
-            return {}
-
-        result = {}
-        seq = override_seq if override_seq is not None else self.sequencer(index)
-
-        for key, template in outfiles.items():
-            # The template may still contain placeholders that need to be resolved
-            # Replace placeholders with actual values
-            resolved_template = template
-            resolved_template = resolved_template.replace('.owner.', f'.{self.owner}.')
-            resolved_template = resolved_template.replace('.version.', f'.{self.dsconf}.')
-            resolved_template = resolved_template.replace('.sequencer.', f'.{seq}.')
-            # Also handle {sequencer} format (Python-style placeholder)
-            resolved_template = resolved_template.replace('{sequencer}', seq)
-            # Substitute {desc} from fname at runtime (direct-input / generic tarball mode)
-            if override_desc is not None:
-                resolved_template = resolved_template.replace('{desc}', override_desc)
-
-            # Skip filenames that don't follow Mu2e naming convention (e.g., /dev/null, relative paths)
-            if not resolved_template.startswith(('dts.', 'dig.', 'sim.', 'rec.', 'nts.', 'cnf.', 'mcs.')):
-                result[key] = resolved_template
-                continue
-
-            # Update sequencer in the filename (parse then re-emit with new seq)
-            result[key] = str(Mu2eName.parse(resolved_template).with_sequencer(seq))
-
-        return result
-    
-    def job_event_settings(self, index: int) -> Dict[str, Union[int, str]]:
-        """Get event settings for job index."""
-        tbs = self.json_data.get('tbs', {})
-        event_id = tbs.get('event_id')
-        per_index = tbs.get('event_id_per_index', {})
-
-        if not event_id and not per_index:
-            return {}
-
-        result = {}
-        if event_id:
-            for key, value in event_id.items():
-                result[key] = value
-
-        subrunkey = tbs.get('subrunkey')
-        if subrunkey is not None:
-            if subrunkey != '':
-                result[subrunkey] = index
-        else:
-            # Old format
-            result['source.firstSubRun'] = index
-
-        # Per-index linear overrides: result[key] = offset + index * step.
-        # Applied last so they override any fixed event_id entry on the same key.
-        for key, spec in per_index.items():
-            offset = int(spec.get('offset', 0))
-            step = int(spec.get('step', 0))
-            result[key] = offset + index * step
-
-        return result
-    
-    def job_seed(self, index: int) -> Dict[str, int]:
-        """Get seed settings for job index."""
-        tbs = self.json_data.get('tbs', {})
-        seed_key = tbs.get('seed')
-        
-        if not seed_key:
-            return {}
-        
-        return {seed_key: 1 + index}
-    
-    def njobs(self) -> int:
-        """Get number of jobs."""
-        tbs = self.json_data.get('tbs', {})
-        inputs = tbs.get('inputs')
-        
-        if not inputs:
-            return 0
-        
-        # inputs is a dict with one key-value pair
-        for dataset, (merge, filelist) in inputs.items():
-            nf = len(filelist)
-            return (nf + merge - 1) // merge
-        
-        return 0
-    
-    def input_datasets(self) -> List[str]:
-        """Get list of input datasets."""
-        tbs = self.json_data.get('tbs', {})
-        
-        # Collect all dataset names from different input types
-        datasets = set()
-        datasets.update(tbs.get('inputs', {}).keys())
-        datasets.update(tbs.get('auxin', {}).keys())
-        datasets.update(tbs.get('samplinginput', {}).keys())
-        
-        return list(datasets)
-    
     def index_from_sequencer(self, seq: str) -> int:
         """Get job index from sequencer."""
         nj = self.njobs()
@@ -471,8 +177,12 @@ class Mu2eJobFCL(Mu2eJobBase):
         if source_type == 'SamplingInput':
             config_lines.append(f"source.samplingSeed: {1 + index}")
         
-        # Input files with protocol handling
+        # Input files with protocol handling. Batch-locate everything in
+        # one SAM round-trip first — per-file lookups cost ~90 sequential
+        # HTTP calls for a mixing job (primaries + pileup).
         inputs = self.job_inputs(index)
+        self._resolver.prefetch(
+            [f for file_list in inputs.values() for f in file_list])
         for key, file_list in inputs.items():
             if file_list:
                 config_lines.append(f"{key}: [")

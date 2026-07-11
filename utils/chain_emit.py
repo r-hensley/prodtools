@@ -21,17 +21,20 @@ _FAMILY_RE = re.compile(r"^(MDC\d{4}|Run\d+[A-Z]?)")
 
 # stage -> the input data tier that stage consumes
 STAGE_INPUT_TIER = {'digi': 'dts', 'reco': 'dig', 'ntuple': 'mcs'}
-# inverse: input tier -> stage (for tier-inferred stage selection)
-TIER_TO_STAGE = {tier: stage for stage, tier in STAGE_INPUT_TIER.items()}
+# stage -> the output data tier(s) it produces (ntuple writes nts or ntd)
+STAGE_OUTPUT_TIERS = {'digi': ('dig',), 'reco': ('mcs',), 'ntuple': ('nts', 'ntd')}
+# inverse: output tier -> stage
+_TIER_TO_OUTPUT_STAGE = {t: s for s, tiers in STAGE_OUTPUT_TIERS.items() for t in tiers}
 
 
-def stage_for_tier(tier):
-    """Infer the chain stage from an input dataset's tier (dts→digi, dig→reco, mcs→ntuple)."""
+def input_tier_for_output(out_tier):
+    """Map a stage's output tier back to the input tier it consumes
+    (mcs→dig, dig→dts, nts/ntd→mcs)."""
     try:
-        return TIER_TO_STAGE[tier]
+        return STAGE_INPUT_TIER[_TIER_TO_OUTPUT_STAGE[out_tier]]
     except KeyError:
         raise ValueError(
-            f"no chain stage consumes tier '{tier}' (known: {sorted(TIER_TO_STAGE)})")
+            f"no chain stage produces tier '{out_tier}' (known: {sorted(_TIER_TO_OUTPUT_STAGE)})")
 
 
 def family_of(campaign):
@@ -199,7 +202,7 @@ def synthesize_entry(template, input_dataset, out_campaign=None, defer_desc=Fals
     entry = copy.deepcopy(match_entry(template, n.description))
     merge = _input_merge(entry)
     # Pin the concrete input, preserving the template's container shape:
-    # list-form [{name: merge}] (mixing/jsonexpander) vs dict {name: merge}
+    # list-form [{name: merge}] (mixing) vs dict {name: merge}
     # (digi/reco/ntuple). pileup_datasets and other fields are left untouched.
     if isinstance(entry.get('input_data'), list):
         entry['input_data'] = [{input_dataset: merge}]
@@ -261,7 +264,7 @@ def output_datasets(entry, owner='mu2e'):
     the sequencer. Skips templates that resolve to a path (e.g. /dev/null).
 
     Handles both shapes: scalar fields (digi/reco/ntuple) and list-wrapped
-    jsonexpander fields (mixing), unwrapping ``[x]`` -> ``x``.
+    mixing fields, unwrapping ``[x]`` -> ``x``.
 
     Mixing leaves ``{desc}`` literal in the output fileName (see ``defer_desc``).
     When that token survives, expand it to the concrete ``input_desc + pbeam``
@@ -273,20 +276,18 @@ def output_datasets(entry, owner='mu2e'):
     for key, val in (unwrap(entry.get('fcl_overrides', {})) or {}).items():
         if not key.endswith('fileName') or not isinstance(val, str) or '/' in val:
             continue
-        parts = val.split('.')
-        if len(parts) != 6:
+        # Templates carry literal placeholder tokens (owner/version/sequencer);
+        # Mu2eName parses them structurally. Only the 6-field file form counts.
+        try:
+            n = Mu2eName.parse(val)
+        except ValueError:
             continue
-        tier, _owner, desc, _version, _seq, ext = parts
-        if '{desc}' in desc:
-            for rd in _deferred_descs(entry):
-                out.append(f"{tier}.{owner}.{desc.replace('{desc}', rd)}.{dsconf}.{ext}")
-        else:
-            out.append(f"{tier}.{owner}.{desc}.{dsconf}.{ext}")
+        if n.is_dataset:
+            continue
+        descs = ([n.description.replace('{desc}', rd) for rd in _deferred_descs(entry)]
+                 if '{desc}' in n.description else [n.description])
+        for d in descs:
+            out.append(str(Mu2eName.build(tier=n.tier, owner=owner, description=d,
+                                          dsconf=dsconf, extension=n.extension)))
     return out
 
-
-def dataset_complete(dataset_name, count_fn, njobs_fn):
-    """True iff the dataset has exactly as many files as its producing cnf's
-    njobs. ``count_fn(name)->int`` and ``njobs_fn(name)->int`` are injected so
-    this stays unit-testable without SAM."""
-    return count_fn(dataset_name) == njobs_fn(dataset_name)

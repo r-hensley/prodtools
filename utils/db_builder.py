@@ -9,17 +9,24 @@ import os
 import sys
 import glob
 import json
-import time
 from typing import Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.poms_db import get_db_session, Job, JobOutput, DatasetInfo
-from utils.samweb_wrapper import count_files, locate_file, locate_file_full, list_files, list_definition_files, describe_definition, get_metadata
+from utils.samweb_wrapper import (
+    locate_file_full,
+    list_definition_files,
+    describe_definition,
+    get_metadata,
+    dataset_summary,
+    definition_file_count,
+    children_of_file,
+)
 from utils.job_common import Mu2eName
-from utils.jobiodetail import Mu2eJobIO
 from utils.jobquery import Mu2eJobPars
+from utils.file_resolver import sam_physical_path
 from utils.logparser import process_dataset as parse_logs_for_dataset
 import re
 from datetime import datetime
@@ -31,20 +38,10 @@ _SKIP_TARBALLS = {
 }
 
 
-def _extract_file_path(location):
-    """Extract file path from SAM location result."""
-    if isinstance(location, dict):
-        file_path = location.get('full_path', '')
-        return file_path.split(':', 1)[1] if ':' in file_path else file_path
-    elif isinstance(location, str):
-        return location.split(':', 1)[1] if ':' in location else location
-    return None
-
-
 def _get_dataset_stats(dataset_name):
     """Get dataset statistics from SAM."""
     try:
-        result = list_files(f"dh.dataset={dataset_name}", summary=True)
+        result = dataset_summary(dataset_name)
         if isinstance(result, dict):
             return (
                 int(result.get('file_count', 0) or 0),
@@ -97,7 +94,7 @@ def _check_dataset_has_children(dataset_name):
         first_file = files[0]
         
         # Check if any files are children of the first file
-        children = list_files(f'ischildof: (file_name {first_file})')
+        children = children_of_file(first_file)
         return len(children) > 0
     except Exception as e:
         print(f"Warning: _check_dataset_has_children failed for {dataset_name}: {e}", file=sys.stderr)
@@ -220,6 +217,9 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
 
     # Track tarballs we see in JSON files (to remove jobs that no longer exist)
     seen_tarballs = set()
+    # Expected file count per tarball this scan: max window end across all
+    # its entries (a tarball may appear once per firstjob window).
+    scan_expected = {}
     count = 0
     
     # NB: deliberately uses bare entry.get(...) rather than utils.poms_entry
@@ -239,11 +239,21 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
             # Check if job already exists
             existing_job = session.query(Job).filter_by(tarball=tarball).first()
             
+            # Jobs are keyed by tarball, but a tarball may appear in several
+            # map entries as index windows (statistics expansion via
+            # `firstjob`). Windows tile from 0, so the expected file count
+            # is the MAX window end across the tarball's entries — aggregated
+            # explicitly, not by relying on file scan order.
+            expected_njobs = max(
+                scan_expected.get(tarball, 0),
+                entry.get("firstjob", 0) + entry.get("njobs", 0))
+            scan_expected[tarball] = expected_njobs
+
             if existing_job:
                 # Update existing job, but preserve metrics
                 existing_job.fcl_template = entry.get("fcl_template")
                 existing_job.indef = entry.get("indef")
-                existing_job.njobs = entry.get("njobs", 0)
+                existing_job.njobs = expected_njobs
                 existing_job.template_mode = entry.get("template_mode", False)
                 existing_job.inloc = entry.get("inloc")
                 existing_job.source_file = json_file
@@ -255,7 +265,7 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
                     tarball=tarball,
                     fcl_template=entry.get("fcl_template"),
                     indef=entry.get("indef"),
-                    njobs=entry.get("njobs", 0),
+                    njobs=expected_njobs,
                     template_mode=entry.get("template_mode", False),
                     inloc=entry.get("inloc"),
                     source_file=json_file,
@@ -265,7 +275,7 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
             # Resolve template-mode njobs via defname when missing
             if job.fcl_template and job.indef and not job.njobs:
                 try:
-                    njobs = count_files(f"defname: {job.indef}")
+                    njobs = definition_file_count(job.indef)
                     if njobs > 0:
                         job.njobs = njobs
                         print(f"  Template mode: {job.indef} -> {njobs} files")
@@ -315,14 +325,15 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
             print(f"Skipping {job.tarball} (in _SKIP_TARBALLS — bad dCache replica)")
             continue
         try:
-            file_path = _extract_file_path(locate_file(job.tarball))
-            if not file_path:
+            try:
+                full_path = sam_physical_path(job.tarball)
+            except Exception:
                 continue
-            full_path = os.path.join(file_path, job.tarball)
             if not os.path.exists(full_path):
                 continue
 
-            outputs = Mu2eJobIO(full_path).job_outputs(0)
+            jp = Mu2eJobPars(full_path)
+            outputs = jp.job_outputs(0)
             if not outputs:
                 continue
 
@@ -330,7 +341,7 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
             # is encoded inside the cnf tarball. Pull it from there so the
             # static dashboard's lineage walker has parent edges.
             try:
-                inputs = Mu2eJobPars(full_path).input_datasets()
+                inputs = jp.input_datasets()
                 job.indef = ','.join(inputs) if inputs else None
             except Exception as e:
                 print(f"  Warning: input_datasets failed for {job.tarball}: {e}", file=sys.stderr)
@@ -396,16 +407,12 @@ def build_db(pattern: str, db_path: str, poms_dir: str = "/exp/mu2e/app/users/mu
                     info.location = _infer_dataset_location(dataset_name)
 
                 # Ensure job_outputs row exists
-                if not session.query(JobOutput).filter_by(job_id=job.id, dataset=dataset_name).first():
-                    session.add(JobOutput(
-                        job_id=job.id,
-                        dataset=dataset_name,
-                        location=info.location if info.location and info.location != 'N/A' else None
-                    ))
-                else:
-                    job_output = session.query(JobOutput).filter_by(job_id=job.id, dataset=dataset_name).first()
-                    if job_output and not job_output.location:
-                        job_output.location = info.location if info.location and info.location != 'N/A' else job_output.location
+                job_output = session.query(JobOutput).filter_by(job_id=job.id, dataset=dataset_name).first()
+                loc = info.location if info.location and info.location != 'N/A' else None
+                if not job_output:
+                    session.add(JobOutput(job_id=job.id, dataset=dataset_name, location=loc))
+                elif not job_output.location and loc:
+                    job_output.location = loc
                 discovered += 1
 
         except Exception:

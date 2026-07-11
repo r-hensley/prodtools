@@ -15,13 +15,11 @@
       "dts.mu2e.MuStopPileupCat.Run1Baa.art": 2
     }],
     "dsconf": ["Run1Bab_best_v1_2"],
-    "mixconf": [0],
     "pbeam": ["MixLow"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bab/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
-    "inloc": ["tape"],
+    "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
       {
@@ -53,13 +51,11 @@
       "dts.mu2e.MuStopPileupCat.Run1Baa.art": 2
     }],
     "dsconf": ["Run1Bab2_best_v1_2"],
-    "mixconf": [0],
     "pbeam": ["MixLow"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bab/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
-    "inloc": ["tape"],
+    "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
       {
@@ -94,12 +90,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Baa.art": 2
     }],
     "dsconf": ["Run1Baf_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["MixLow"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Baf/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["stash"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -131,12 +125,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Baa.art": 2
     }],
     "dsconf": ["Run1Baf_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["MixLow"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Baf/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["stash"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -175,12 +167,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bag.art": 2
     }],
     "dsconf": ["Run1Bah_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bah/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -213,12 +203,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bag.art": 2
     }],
     "dsconf": ["Run1Bah_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bah/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -252,12 +240,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bag.art": 2
     }],
     "dsconf": ["Run1Bah_best_v1_4-002"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bah/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -290,13 +276,11 @@
       "dts.mu2e.MuStopPileupCat.Run1Bai-007.art": 1
     }],
     "dsconf": ["Run1Bai_best_v1_4-003"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bai/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
-    "inloc": ["tape"],
+    "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
       {
@@ -334,12 +318,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bai-004.art": 2
     }],
     "dsconf": ["Run1Bai_best_v1_4-000"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bai/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -376,12 +358,10 @@
       "dts.mu2e.MuStopPileupCat.Run1Bai-004.art": 2
     }],
     "dsconf": ["Run1Bai_best_v1_4-001"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bai/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -421,13 +401,11 @@
       "dts.mu2e.MuStopPileupCat.Run1Bai-004.art": 2
     }],
     "dsconf": ["Run1Bai_best_v1_4-002"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bai/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
-    "inloc": ["tape"],
+    "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
       {
@@ -454,6 +432,128 @@
           "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl",
           "Production/JobConfig/mixing/NoPrimary.fcl"
         ]
+      }
+    ]
+  }
+  ,
+  {
+    "input_data": [
+      {"dts.mu2e.CeEndpoint.Run1Ban-001.art": 1},
+      {"dts.mu2e.FlateMinus.Run1Ban-001.art": 1},
+      {"dts.mu2e.FlatGamma.Run1Ban-001.art": 1},
+      {"dts.mu2e.CosmicCRYAll.Run1Ban.art": 1}
+    ],
+    "pileup_datasets": [{
+      "dts.mu2e.MuBeamFlashCat.Run1Ban.art": 1,
+      "dts.mu2e.EleBeamFlashCat.Run1Ban.art": 25,
+      "dts.mu2e.NeutralsFlashCat.Run1Ban.art": 1,
+      "dts.mu2e.MuStopPileupCat.Run1Ban.art": 2
+    }],
+    "dsconf": ["Run1Ban_best_v1_4-000"],
+    "pbeam": ["Mix1BB"],
+    "owner": ["mu2e"],
+    "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Ban/setup.sh"],
+    "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
+    "inloc": ["resilient"],
+    "outloc": [{"dig.mu2e.*.art": "tape"}],
+    "fcl_overrides": [
+      {
+        "services.DbService.purpose": "Sim_best",
+        "services.DbService.version": "v1_4",
+        "services.DbService.textFile": ["Production/data/SimEfficiencies2_Run1Ban.txt"],
+        "services.DbService.nearestMatch": "true",
+        "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_DSOff.txt",
+        "services.GeometryService.inputFile": "Offline/Mu2eG4/geom/geom_run1_b_v40.txt",
+        "services.ProditionsService.strawElectronics.digitizationEnd": "1650",
+        "physics.producers.CaloShowerROMaker.digitizationEnd": "1650",
+        "physics.producers.CaloDigiMaker.digitizationEnd": "1650",
+        "outputs.Output.fileName": "dig.owner.{desc}.version.sequencer.art",
+        "outputs.Output.RejectEvents": [],
+        "outputs.Output.SelectEvents": [],
+        "#include": "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl",
+        "physics.producers.PBISim.extendedMean": "5.92e6",
+        "physics.producers.PBISim.cutMax": "35.5e6"
+      }
+    ]
+  }
+  ,
+  {
+    "input_data": [
+      {"dts.mu2e.NoPrimary.Run1Ban.art": 1}
+    ],
+    "pileup_datasets": [{
+      "dts.mu2e.MuBeamFlashCat.Run1Ban.art": 1,
+      "dts.mu2e.EleBeamFlashCat.Run1Ban.art": 25,
+      "dts.mu2e.NeutralsFlashCat.Run1Ban.art": 1,
+      "dts.mu2e.MuStopPileupCat.Run1Ban.art": 2
+    }],
+    "dsconf": ["Run1Ban_best_v1_4-000"],
+    "pbeam": ["Mix1BB"],
+    "owner": ["mu2e"],
+    "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Ban/setup.sh"],
+    "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
+    "inloc": ["resilient"],
+    "outloc": [{"dig.mu2e.*.art": "tape"}],
+    "fcl_overrides": [
+      {
+        "services.DbService.purpose": "Sim_best",
+        "services.DbService.version": "v1_4",
+        "services.DbService.textFile": ["Production/data/SimEfficiencies2_Run1Ban.txt"],
+        "services.DbService.nearestMatch": "true",
+        "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_DSOff.txt",
+        "services.GeometryService.inputFile": "Offline/Mu2eG4/geom/geom_run1_b_v40.txt",
+        "services.ProditionsService.strawElectronics.digitizationEnd": "1650",
+        "physics.producers.CaloShowerROMaker.digitizationEnd": "1650",
+        "physics.producers.CaloDigiMaker.digitizationEnd": "1650",
+        "outputs.Output.fileName": "dig.owner.{desc}.version.sequencer.art",
+        "outputs.Output.RejectEvents": [],
+        "outputs.Output.SelectEvents": [],
+        "#include": [
+          "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl",
+          "Production/JobConfig/mixing/NoPrimary.fcl"
+        ],
+        "physics.producers.PBISim.extendedMean": "5.92e6",
+        "physics.producers.PBISim.cutMax": "35.5e6"
+      }
+    ]
+  }
+  ,
+  {
+    "input_data": [
+      {"dts.mu2e.NoPrimary.Run1Ban.art": 10}
+    ],
+    "pileup_datasets": [{
+      "dts.mu2e.MuBeamFlashCat.Run1Ban.art": 1,
+      "dts.mu2e.EleBeamFlashCat.Run1Ban.art": 25,
+      "dts.mu2e.NeutralsFlashCat.Run1Ban.art": 1,
+      "dts.mu2e.MuStopPileupCat.Run1Ban.art": 2
+    }],
+    "dsconf": ["Run1Ban_best_v1_5-000"],
+    "pbeam": ["Mix1BB"],
+    "owner": ["mu2e"],
+    "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Ban/setup.sh"],
+    "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
+    "inloc": ["resilient"],
+    "outloc": [{"dig.mu2e.*.art": "tape"}],
+    "fcl_overrides": [
+      {
+        "services.DbService.purpose": "Sim_best",
+        "services.DbService.version": "v1_5",
+        "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_DSOff.txt",
+        "services.GeometryService.inputFile": "Offline/Mu2eG4/geom/geom_run1_b_v40.txt",
+        "services.ProditionsService.strawElectronics.digitizationEnd": "1650",
+        "physics.producers.CaloShowerROMaker.digitizationEnd": "1650",
+        "physics.producers.CaloDigiMaker.digitizationEnd": "1650",
+        "physics.filters.CaloDtsClusterFilter.NullFilter": false,
+        "outputs.Output.fileName": "dig.owner.{desc}.version.sequencer.art",
+        "outputs.Output.RejectEvents": [],
+        "outputs.Output.SelectEvents": [],
+        "#include": [
+          "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl",
+          "Production/JobConfig/mixing/NoPrimary.fcl"
+        ],
+        "physics.producers.PBISim.extendedMean": "5.92e6",
+        "physics.producers.PBISim.cutMax": "35.5e6"
       }
     ]
   }

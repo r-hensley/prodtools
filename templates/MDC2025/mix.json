@@ -8,7 +8,12 @@
       "FlatGamma",
       "FlatGammaCalo",
       "CosmicSignal",
-      "ensembleMDS3c"
+      "ensembleMDS3c",
+      "PbarResampling",
+      "DIOtail95",
+      "RPCExternalPhysical",
+      "RPCInternalPhysical",
+      "IPAMuminusMichel"
     ],
     "input_data": [
       {
@@ -24,7 +29,7 @@
       }
     ],
     "dsconf": [
-      "{out_campaign}_best_v1_1"
+      "{out_campaign}_best_v1_3"
     ],
     "pbeam": [
       "Mix1BB"
@@ -38,11 +43,8 @@
     "fcl": [
       "Production/JobConfig/mixing/Mix.fcl"
     ],
-    "merge_events": [
-      500
-    ],
     "inloc": [
-      "tape"
+      "resilient"
     ],
     "outloc": [
       {
@@ -52,7 +54,7 @@
     "fcl_overrides": [
       {
         "services.DbService.purpose": "Sim_best",
-        "services.DbService.version": "v1_1",
+        "services.DbService.version": "v1_3",
         "physics.producers.PBISim.SDF": 0.8,
         "outputs.Output.fileName": "dig.mu2e.{desc}.{dsconf}.sequence.art"
       }
@@ -77,7 +79,7 @@
       }
     ],
     "dsconf": [
-      "{out_campaign}_best_v1_1"
+      "{out_campaign}_best_v1_3"
     ],
     "pbeam": [
       "Mix1BB"
@@ -91,11 +93,8 @@
     "fcl": [
       "Production/JobConfig/mixing/Mix.fcl"
     ],
-    "merge_events": [
-      500
-    ],
     "inloc": [
-      "tape"
+      "resilient"
     ],
     "outloc": [
       {
@@ -105,7 +104,7 @@
     "fcl_overrides": [
       {
         "services.DbService.purpose": "Sim_best",
-        "services.DbService.version": "v1_1",
+        "services.DbService.version": "v1_3",
         "physics.producers.PBISim.SDF": 0.8,
         "#include": "Production/JobConfig/mixing/NoPrimary.fcl",
         "outputs.Output.fileName": "dig.mu2e.{desc}.{dsconf}.sequence.art"

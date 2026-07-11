@@ -3,25 +3,41 @@
 import sys, os, json, argparse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.jobiodetail import Mu2eJobIO
-from utils.samweb_wrapper import SAMWebWrapper, list_files, create_definition
-from utils.job_common import Mu2eName, remove_storage_prefix
-from utils.poms_entry import tarball_of, njobs_of
+from utils.jobquery import Mu2eJobPars
+from utils.samweb_wrapper import (
+    create_definition,
+    dataset_file_count,
+    files_in_dataset,
+    q_dataset_files_named,
+)
+from utils.job_common import Mu2eName
+from utils.file_resolver import sam_physical_path
+from utils.poms_entry import tarball_of, njobs_of, firstjob_of
 
-def find_missing_indices(tarball_path, dataset, njobs):
-    """Find job indices for missing files in a dataset."""
-    job_io = Mu2eJobIO(tarball_path)
-    dataset_base = dataset.replace('.art', '')
-    
-    # Build mapping from filename to job index
+def find_missing_indices(tarball_path, dataset, njobs, firstjob=0):
+    """Find job indices for missing files in a dataset.
+
+    A windowed entry (firstjob > 0) covers cnf indices
+    [firstjob, firstjob+njobs). Returned indices are WINDOW-RELATIVE
+    (0-based slot within the entry) so callers can map them to global
+    recovery indices with a plain `cumulative + idx` — no caller does
+    offset arithmetic.
+    """
+    job_io = Mu2eJobPars(tarball_path)
+    # Build mapping from filename to window-relative index. Structured
+    # compare — a substring test would false-match sibling dsconfs where
+    # one is a prefix of the other (e.g. ..._v1_4 vs ..._v1_4-000).
     file_to_job = {}
     for job_idx in range(njobs):
-        for filename in job_io.job_outputs(job_idx).values():
-            if dataset_base in filename:
-                file_to_job[filename] = job_idx
+        for filename in job_io.job_outputs(firstjob + job_idx).values():
+            try:
+                if str(Mu2eName.parse(filename).dataset) == dataset:
+                    file_to_job[filename] = job_idx
+            except ValueError:
+                continue
     
     expected_files = set(file_to_job.keys())
-    actual_files = set(list_files(f"dh.dataset {dataset}"))
+    actual_files = set(files_in_dataset(dataset))
     missing_files = expected_files - actual_files
     
     if not missing_files:
@@ -35,8 +51,10 @@ def create_recovery_definition(defname, indices):
     """Create SAM recovery definition from job indices. Returns True on
     success; on failure prints the error and returns False (does not
     re-raise — caller can decide whether to abort the recovery flow)."""
-    etc_files = [f"etc.mu2e.index.000.{idx:07d}.txt" for idx in sorted(indices)]
-    query = f"dh.dataset etc.mu2e.index.000.txt and file_name in ({', '.join(etc_files)})"
+    etc_files = [str(Mu2eName.build(tier='etc', owner='mu2e', description='index',
+                                    dsconf='000', sequencer=f"{idx:07d}", extension='txt'))
+                 for idx in sorted(indices)]
+    query = q_dataset_files_named("etc.mu2e.index.000.txt", etc_files)
     try:
         create_definition(defname, query)
     except Exception as e:
@@ -45,26 +63,24 @@ def create_recovery_definition(defname, indices):
     print(f"Created SAM definition: {defname}")
     return True
 
-def locate_tarball(sam, tarball):
-    """Locate and return full path to tarball."""
-    locs = sam.locate_file_full(tarball)
-    if not locs:
+def locate_tarball(tarball):
+    """Locate and return full path to tarball, or None if SAM has no
+    usable location (matches the old swallow-and-skip semantics)."""
+    try:
+        return sam_physical_path(tarball)
+    except Exception:
         return None
-    return os.path.join(remove_storage_prefix(locs[0].get('full_path', '')), tarball)
 
 def extract_datasets_from_tarball(tarball_path, njobs):
     """Extract output dataset names from job definition tarball."""
-    from utils.jobquery import Mu2eJobPars
-    
     job_pars = Mu2eJobPars(tarball_path)
     output_datasets = job_pars.output_datasets()
     
     # If output_datasets is empty, extract from actual output files
     if not output_datasets:
-        job_io = Mu2eJobIO(tarball_path)
         dataset_set = set()
         for idx in range(min(10, njobs)):
-            for filename in job_io.job_outputs(idx).values():
+            for filename in job_pars.job_outputs(idx).values():
                 # Extract dataset name from filename (force .art extension to
                 # match historical behavior — outputs may have other exts).
                 try:
@@ -81,18 +97,17 @@ def main():
     p.add_argument('input', help='Tarball path or jobdesc JSON file')
     p.add_argument('--dataset', help='Dataset name (required for single tarball mode)')
     p.add_argument('--njobs', type=int, help='Number of jobs (required for single tarball mode)')
+    p.add_argument('--firstjob', type=int, default=0,
+                   help='Cnf-index window start for single tarball mode (default 0)')
     p.add_argument('--jobdesc', action='store_true', help='Process jobdesc JSON file with global indices')
     args = p.parse_args()
     
     if args.jobdesc:
         # Process jobdesc JSON file
-        from utils.samweb_wrapper import count_files
-        
         with open(args.input) as f:
             entries = json.load(f)
         
         json_basename = os.path.basename(args.input).replace('.json', '')
-        sam = SAMWebWrapper()
         all_missing_indices, cumulative = set(), 0
         
         print(f"Processing {len(entries)} entries from {args.input}\n{'='*60}\n")
@@ -100,12 +115,14 @@ def main():
         for i, entry in enumerate(entries):
             tarball = tarball_of(entry)
             njobs = njobs_of(entry)
+            firstjob = firstjob_of(entry)
             if njobs is None:
                 raise ValueError(f"POMS entry {i} missing required field: 'njobs'")
-            print(f'[{i+1}/{len(entries)}] {tarball}')
+            print(f'[{i+1}/{len(entries)}] {tarball}'
+                  + (f' (window {firstjob}..{firstjob + njobs - 1})' if firstjob else ''))
             
             # Locate tarball
-            tarball_path = locate_tarball(sam, tarball)
+            tarball_path = locate_tarball(tarball)
             if not tarball_path or not os.path.exists(tarball_path):
                 print(f'  ERROR: Could not locate tarball')
                 cumulative += njobs
@@ -127,18 +144,19 @@ def main():
             # Process each dataset
             for dataset_name in output_datasets:
                 try:
-                    nfiles = count_files(f"dh.dataset {dataset_name}")
+                    nfiles = dataset_file_count(dataset_name)
                 except Exception as e:
                     print(f'    {dataset_name}: Could not query SAM ({e})')
                     nfiles = 0
                 
                 print(f'    {dataset_name}: {nfiles}/{njobs} files')
-                missing_indices, missing_files = find_missing_indices(tarball_path, dataset_name, njobs)
-                
+                missing_indices, missing_files = find_missing_indices(tarball_path, dataset_name, njobs, firstjob)
+
                 if not missing_indices:
                     print(f'      Complete')
                 else:
                     print(f'      Missing: {len(missing_files)} files (expected {njobs}, found {nfiles})')
+                    # window-relative → global recovery indices
                     all_missing_indices.update(cumulative + idx for idx in missing_indices)
             
             cumulative += njobs
@@ -157,7 +175,7 @@ def main():
         if not args.dataset or not args.njobs:
             p.error("--dataset and --njobs required for single tarball mode")
         
-        missing_indices, missing_files = find_missing_indices(args.input, args.dataset, args.njobs)
+        missing_indices, missing_files = find_missing_indices(args.input, args.dataset, args.njobs, args.firstjob)
         print(f"Missing: {len(missing_files)} of {args.njobs}")
         
         if missing_indices:

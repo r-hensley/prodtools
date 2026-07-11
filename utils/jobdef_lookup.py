@@ -63,13 +63,99 @@ def list_jobdefs(dsconf):
         return []
 
 
+def _raw_outfile_descs(tarball_path):
+    """Raw output descriptions declared in a cnf's jobpars, WITHOUT resolving
+    the sequencer. Returns list of (description, tier) parsed from each
+    ``tbs.outfiles`` template. Safe on generic tarballs (whose {desc}/sequencer
+    are deferred and would make job_outputs() raise)."""
+    from utils.jobquery import Mu2eJobPars
+    out = []
+    try:
+        outfiles = Mu2eJobPars(tarball_path).json_data.get('tbs', {}).get('outfiles', {})
+    except Exception:
+        return out
+    for template in (outfiles or {}).values():
+        try:
+            n = Mu2eName.parse(template)
+        except ValueError:
+            continue
+        out.append((n.description, n.tier))
+    return out
+
+
+def is_generic_cnf(tarball_path):
+    """True if the cnf is a generic tarball: any output description still
+    carries the literal ``{desc}`` placeholder (deferred to runtime)."""
+    return any('{desc}' in d for d, _ in _raw_outfile_descs(tarball_path))
+
+
+def _generic_desc_capture(template_desc, desc):
+    """If a {desc}-templated output description matches a concrete one, return the
+    value captured by ``{desc}`` (the input desc), else None. e.g. ``{desc}-KL``
+    vs ``CeEndpoint-KL`` -> ``CeEndpoint``; ``{desc}`` vs ``X`` -> ``X``."""
+    import re
+    if '{desc}' not in template_desc:
+        return None
+    parts = template_desc.split('{desc}')
+    m = re.fullmatch('(.+)'.join(re.escape(p) for p in parts), desc)
+    return m.group(1) if m else None
+
+
+def _generic_desc_matches(template_desc, desc):
+    """True if a {desc}-templated output description matches a concrete request."""
+    return _generic_desc_capture(template_desc, desc) is not None
+
+
+def derive_generic_input(tarball_path, target):
+    """Map a --target OUTPUT file to its INPUT art file for a generic cnf: strip
+    the output-template suffix -> input desc, map tier (mcs->dig) via the chain,
+    and find the input file in SAM by desc + sequencer (any dsconf)."""
+    from utils.samweb_wrapper import files_like
+    from utils.chain_emit import input_tier_for_output
+    t = Mu2eName.parse(target)
+    in_tier = input_tier_for_output(t.tier)
+    input_desc = None
+    for tmpl, tier in _raw_outfile_descs(tarball_path):
+        if tier == t.tier:
+            input_desc = _generic_desc_capture(tmpl, t.description)
+            if input_desc:
+                break
+    if not input_desc:
+        raise ValueError(f"cannot derive input for target '{target}'")
+    matches = files_like(f"{in_tier}.mu2e.{input_desc}.%.art",
+                         sequencer=t.sequencer)
+    if not matches:
+        raise ValueError(f"no {in_tier} input for desc '{input_desc}' seq '{t.sequencer}'")
+    return matches[0]
+
+
+def _search_generic(jobdefs, desc, input_type):
+    """Lowest-priority pass: match a generic cnf whose {desc}-templated output
+    (of the right tier) can produce ``desc``. Used only when no exact per-desc
+    or output-name match exists, so exact cnfs always win."""
+    for jobdef in jobdefs:
+        try:
+            tarball_path = locate_tarball(jobdef)
+        except RuntimeError as e:
+            _log(f"Skipping {jobdef}: {e}")
+            continue
+        for tmpl_desc, tier in _raw_outfile_descs(tarball_path):
+            if '{desc}' in tmpl_desc and tier == input_type \
+                    and _generic_desc_matches(tmpl_desc, desc):
+                _log(f"  Matched generic cnf '{jobdef}' via template '{tmpl_desc}'")
+                return tarball_path
+    return None
+
+
 def find_matching_jobdef(jobdefs, desc, input_type=None):
     """Find the cnf tarball that produces output description ``desc``.
 
-    Two-pass search:
+    Three-pass search (exact wins, generic is last resort):
       1. Fast: pre-filter cnfs whose own desc matches ``desc`` (1:1 case).
       2. Fallback: scan all cnfs at the dsconf, matching on declared output
          filenames (catches the suffixed-output case).
+      3. Generic: match a generic cnf whose {desc}-templated output can produce
+         ``desc`` (e.g. cnf.mu2e.reco -> {desc}-KL matches CeEndpoint-KL).
 
     ``input_type`` is the tier of the dataset being resolved (e.g. 'dig'); only
     cnf outputs of that tier are matched.
@@ -82,12 +168,17 @@ def find_matching_jobdef(jobdefs, desc, input_type=None):
         return result
 
     _log(f"No 1:1 cnf desc match for '{desc}'; scanning {len(jobdefs)} cnfs at dsconf for output-name match...")
-    return _search_jobdefs(jobdefs, desc, input_type, name_filter=False, verbose_match=True)
+    result = _search_jobdefs(jobdefs, desc, input_type, name_filter=False, verbose_match=True)
+    if result:
+        return result
+
+    _log(f"No exact cnf for '{desc}'; checking for a generic ({{desc}}-templated) cnf...")
+    return _search_generic(jobdefs, desc, input_type)
 
 
 def _search_jobdefs(jobdefs, desc, input_type, name_filter, verbose_match=False):
     """Iterate jobdefs and return the first tarball whose output desc + type matches."""
-    from utils.jobiodetail import Mu2eJobIO
+    from utils.jobquery import Mu2eJobPars
 
     matches = []
     for jobdef in jobdefs:
@@ -105,7 +196,13 @@ def _search_jobdefs(jobdefs, desc, input_type, name_filter, verbose_match=False)
             _log(f"Skipping {jobdef}: {e}")
             continue
 
-        outputs = Mu2eJobIO(tarball_path).job_outputs(0)
+        try:
+            outputs = Mu2eJobPars(tarball_path).job_outputs(0)
+        except Exception as e:
+            # Generic tarballs defer {desc}/sequencer -> job_outputs() raises.
+            # They are handled by the generic pass; skip here, don't abort.
+            _log(f"Skipping {jobdef} in output scan ({e})")
+            continue
         for output_file in outputs.values():
             try:
                 out_name = Mu2eName.parse(output_file)
@@ -153,20 +250,6 @@ def locate_tarball(jobdef):
         raise RuntimeError(f"Error locating tarball for {jobdef}: {e}")
 
 
-def cnf_for_output(dataset_name):
-    """Return the cnf tarball path that produced ``dataset_name`` (an output
-    dataset or file name). Raises RuntimeError if none is found — fail loud
-    rather than guess (no silent fallback)."""
-    n = Mu2eName.parse(dataset_name)
-    jobdefs = list_jobdefs(n.dsconf)
-    if not jobdefs:
-        raise RuntimeError(f"No cnf at dsconf '{n.dsconf}' for {dataset_name}")
-    tarball = find_matching_jobdef(jobdefs, n.description, input_type=n.tier)
-    if not tarball:
-        raise RuntimeError(f"No producing cnf found for {dataset_name}")
-    return tarball
-
-
 def output_njobs_map(dsconf):
     """Map {(output_description, output_tier): njobs} for every cnf at <dsconf>,
     opening each cnf exactly once.
@@ -175,14 +258,14 @@ def output_njobs_map(dsconf):
     list_jobdefs and re-opens tarballs for every dataset (O(datasets x cnfs)),
     which crawls; this is O(cnfs) and the caller just does dict lookups.
     njobs is 0 for open-ended generator cnfs (indeterminate)."""
-    from utils.jobiodetail import Mu2eJobIO
     from utils.jobquery import Mu2eJobPars
     out = {}
     for jobdef in list_jobdefs(dsconf):
         try:
             tarball = locate_tarball(jobdef)
-            njobs = Mu2eJobPars(tarball).njobs()
-            outputs = Mu2eJobIO(tarball).job_outputs(0)
+            jp = Mu2eJobPars(tarball)
+            njobs = jp.njobs()
+            outputs = jp.job_outputs(0)
         except Exception as e:
             _log(f"Skipping {jobdef}: {e}")
             continue
@@ -195,21 +278,3 @@ def output_njobs_map(dsconf):
                 out[(n.description, n.tier)] = njobs
     return out
 
-
-def cnf_njobs_for_output(dataset_name):
-    """Ground-truth expected file count for an output dataset: the njobs of the
-    cnf that produced it. Reused as the completeness target (a finished
-    input-driven stage emits exactly njobs files per output stream).
-
-    Raises RuntimeError when the cnf has no inherent job count — i.e. an
-    open-ended EmptyEvent *generator* cnf (njobs determined at submit time, not
-    stored in the cnf). Callers must not treat that as "incomplete"; the cnf
-    simply can't answer (fail loud rather than compare against a bogus 0)."""
-    from utils.jobquery import Mu2eJobPars
-    cnf = cnf_for_output(dataset_name)
-    n = Mu2eJobPars(cnf).njobs()
-    if not n or n <= 0:
-        raise RuntimeError(
-            f"{cnf} reports njobs={n}: open-ended generator cnf has no inherent "
-            f"job count; completeness is indeterminate from the cnf")
-    return n

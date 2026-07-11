@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Simple shell wrapper for fcl_maker.py
+# Simple shell wrapper for fcldump.py
 # Sets up Mu2e environment and calls the Python script
 
 # Check required arguments

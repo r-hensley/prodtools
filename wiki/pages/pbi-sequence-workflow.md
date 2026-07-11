@@ -766,4 +766,4 @@ That was refactored into `json2jobdef` on 2026-04-21 via the
 
 - [[2026-04-21-extend-jobdef-per-index-overrides]] — the jobdef/jobfcl
   mechanism change that made this possible
-- Source: [[2026-04-21-pbi-sequence-implementation]]
+- Source: `wiki/raw/2026-04-21-pbi-sequence-implementation.md` (raw doc, not a page)

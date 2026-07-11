@@ -60,26 +60,24 @@ When regenerating, read in this order:
 6. **Mixing Jobs** — JSON schema with `pileup_datasets` list-of-dict form,
    automatic mixer mapping. Do not use the legacy `*_dataset` / `*_count`
    split form.
-7. **JSON Expansion (`jsonexpander`)** — array-valued keys producing cross
-   products.
-8. **Production Execution (`runmu2e`, `runfcl`)** — role of `fname`
+7. **Production Execution (`runmu2e`)** — role of `fname`
    env var, `etc.mu2e.index.NNN.NNNNNNN.txt` format, dry-run flag.
-9. **Sequential vs. pseudo-random auxiliary input selection** — the
+8. **Sequential vs. pseudo-random auxiliary input selection** — the
    `tbs.sequential_aux` flag.
-10. **FCL overrides** — `fcl_overrides` dict, how template + `--embed`
+9. **FCL overrides** — `fcl_overrides` dict, how template + `--embed`
     works, that base FCL stays unexpanded.
-11. **Parity Tests** — `test/parity_test.sh` usage.
-12. **Additional Tools** — one subsection per script in `bin/` that has
+10. **Parity Tests** — `test/parity_test.sh` usage.
+11. **Additional Tools** — one subsection per script in `bin/` that has
     user-facing CLI: `pomsMonitor`, `pomsMonitorWeb`, `famtree`,
     `logparser`, `genFilterEff`, `datasetFileList`, `listNewDatasets`,
-    `mkrecovery`, `mkidxdef`, `jobquery`, `plot_logs`,
-    `submit_map`, `copy_to_stash`, `add_inputs_from_list.py`,
-    `list_no_child_datasets`, `plot_straw_hits.py`. Each subsection:
-    one-line purpose, 1–3 example invocations, key flags. Enumerate from
-    the current `bin/` directory — add any new script found there, remove
-    any that no longer exist. (`runjob.sh` is a worker bootstrap, not
-    user-facing — omit.)
-13. **Troubleshooting** — only entries that correspond to real error
+    `latestDatasets`, `mkrecovery`, `mkidxdef`, `jobquery`,
+    `submit_map`, `copy_to_stash`. Ops scripts
+    (`install_prodtools.sh`, `update_pomsmonitor_web`) get a one-line
+    mention. Each subsection: one-line purpose, 1–3 example invocations,
+    key flags. Enumerate from the current `bin/` directory — add any new
+    script found there, remove any that no longer exist. (`runjob.sh` is
+    a worker bootstrap, not user-facing — omit.)
+12. **Troubleshooting** — only entries that correspond to real error
     messages produced by current code. Remove stale ones.
 
 ## Tribal knowledge to preserve (non-derivable from code)
@@ -100,9 +98,18 @@ reading the code:
   `dir:` reads via direct POSIX (the `file:` protocol is forced).
 - Random sampling seed is derived from `(owner, desc, dsconf, dataset,
   count, njobs)` — same inputs always produce the same file selection.
+- The per-job seed is `baseSeed = 1 + cnf index` (flat — no version, run,
+  or dsconf term). To extend a dataset's statistics, reuse the existing
+  tarball at fresh indices via a `firstjob` window: a POMS-map entry with
+  `"firstjob": F, "njobs": M` runs cnf indices `[F, F+M)` (fresh seeds
+  `F+1..`, fresh sequencers). Do NOT bump `version`/`run` for a
+  same-input expansion — that restarts the cnf index at 0 and duplicates
+  physics. Only open-ended cnfs (no `tbs.njobs` cap) can be windowed past
+  their original count; closed cnfs are capacity-checked.
 - Parity tests validate byte-for-byte equivalence against the Perl
   `mu2ejobdef` reference implementation.
-- `pomsMonitor` database default path is `~/.prodtools/poms_data.db`.
+- `pomsMonitor` database default path is `poms_data.db` at the repo root
+  (`db_analyzer.get_default_db_path`).
 - `genFilterEff` output is Proditions-compatible (`TABLE
   SimEfficiencies2`).
 - `famtree` auto-excludes `etc*.txt` files from diagrams.

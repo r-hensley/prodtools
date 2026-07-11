@@ -15,13 +15,11 @@
       "dts.mu2e.MuStopPileupCat.MDC2025ac.art": 2
     }],
     "dsconf": ["MDC2025af_best_v1_1"],
-    "mixconf": [0],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025af/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
-    "inloc": ["tape"],
+    "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
       {
@@ -41,13 +39,11 @@
       "dts.mu2e.MuStopPileupCat.MDC2025ac.art": 2
     }],
     "dsconf": ["MDC2025af_best_v1_1"],
-    "mixconf": [1],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025af/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
-    "inloc": ["tape"],
+    "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
       {
@@ -69,12 +65,10 @@
       "dts.mu2e.MuStopPileupCat.MDC2025ac.art": 2
     }],
     "dsconf": ["MDC2025ag_best_v1_3"],
-    "mixconf": [2],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ag/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [
@@ -99,12 +93,10 @@
       "dts.mu2e.MuStopPileupCat.MDC2025ac.art": 2
     }],
     "dsconf": ["MDC2025ai_best_v1_3"],
-    "mixconf": [3],
     "pbeam": ["Mix1BB"],
     "owner": ["mu2e"],
     "simjob_setup": ["/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025ai/setup.sh"],
     "fcl": ["Production/JobConfig/mixing/Mix.fcl"],
-    "merge_events": [500],
     "inloc": ["resilient"],
     "outloc": [{"dig.mu2e.*.art": "tape"}],
     "fcl_overrides": [

@@ -68,7 +68,7 @@ def process_dataset(dsname, samweb, chunk_size=100, max_files=None, verbosity=2)
     summary = DatasetEffSummary(dsname)
     
     # Get list of files in dataset
-    file_list = samweb.list_files(f"dh.dataset={dsname} with availability anylocation")
+    file_list = samweb.files_in_dataset(dsname, availability='anylocation')
     
     num_files_total = len(file_list)
     

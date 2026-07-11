@@ -5,11 +5,12 @@ Extracts information from Mu2e job parameter files (.tar files containing jobpar
 """
 
 import argparse
-import json
 import os
 import sys
 import tarfile
-from pathlib import Path
+
+# Allow running this file directly: make package root importable
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.job_common import Mu2eJobBase, Mu2eName
 
@@ -19,71 +20,10 @@ class Mu2eJobPars(Mu2eJobBase):
     def __init__(self, parfile):
         """Initialize with a job parameter file (.tar)"""
         super().__init__(parfile)
-        self.parfile = parfile  # Keep for backward compatibility
 
     def jobname(self):
         """Get the job name"""
         return self.json_data.get('jobname', '')
-    
-    def njobs(self):
-        """Get the number of jobs (calculated from input files and merge factor)"""
-        # Check if njobs is explicitly set
-        if 'njobs' in self.json_data:
-            return self.json_data['njobs']
-        
-        # Calculate njobs from inputs 
-        tbs = self.json_data.get('tbs', {})
-        inputs = tbs.get('inputs', {})
-        
-        # Get the primary input count (usually source.fileNames)
-        if inputs:
-            source_files = inputs.get('source.fileNames')
-            if source_files and isinstance(source_files, list) and len(source_files) >= 2:
-                merge_factor, file_list = source_files
-                # Extract merge factor from job definition 
-                # merge_factor is the first element, file_list is the second element
-                if not isinstance(merge_factor, int) or merge_factor <= 0:
-                    # Fallback to default if merge_factor is invalid
-                    merge_factor = 1
-                
-                total_files = len(file_list) if file_list else 0
-                if total_files == 0:
-                    return 0
-                
-                # Use same calculation logic as Perl calculate_njobs function
-                # njobs = total_files / merge_factor + (remainder ? 1 : 0)
-                njobs = total_files // merge_factor
-                if total_files % merge_factor:
-                    njobs += 1
-                
-                return njobs
-        
-        # Check for samplinginput
-        samplinginput = tbs.get('samplinginput', {})
-        if samplinginput:
-            # Perl version only processes the FIRST entry (using each(%$sin))
-            # Get the first samplinginput entry
-            for key, value in samplinginput.items():
-                if isinstance(value, list) and len(value) >= 2:
-                    nreq, file_list = value
-                    # Extract nreq (files per job) from job definition
-                    if not isinstance(nreq, int) or nreq < 0:
-                        # Fallback to default if nreq is invalid
-                        nreq = 1
-                    
-                    total_files = len(file_list) if file_list else 0
-                    if total_files == 0:
-                        return 0
-                    
-                    # njobs = total_files / nreq + (remainder ? 1 : 0)
-                    njobs = total_files // nreq
-                    if total_files % nreq:
-                        njobs += 1
-                    
-                    return njobs
-                break  # Only process the first entry
-        
-        return 0
     
     def input_datasets(self):
         """Get list of input datasets"""
@@ -153,36 +93,34 @@ class Mu2eJobPars(Mu2eJobBase):
     
     def extract_code(self):
         """Extract embedded code tarball to current directory"""
-        with tarfile.open(self.parfile, 'r') as tar:
+        with tarfile.open(self.jobdef, 'r') as tar:
             # Look for embedded code files
             for member in tar.getmembers():
                 if member.name.startswith('code/') or member.name.endswith('.tar'):
                     tar.extract(member)
                     print(f"Extracted: {member.name}")
-    
-    def sequencer(self, index):
-        """Get sequencer for job index"""
-        # This would need the actual sequencer logic
-        # For now, return a simple format
-        return f"seq_{index:06d}"
-    
+
     def output_files(self, dataset_name, list_size=None):
-        """Get list of output files for a dataset"""
+        """List output files belonging to the given dataset, computed
+        through the canonical job_outputs()/sequencer() arithmetic."""
         if list_size is None:
             list_size = self.njobs()
-        
+
         if list_size == 0:
             raise ValueError("Cannot determine list size for unlimited job sets")
-        
-        # Generate output file names based on dataset and sequencer
+
+        target = str(Mu2eName.parse(dataset_name).dataset)
         files = []
         for i in range(list_size):
-            sequencer = self.sequencer(i)
-            # This is a simplified version - actual logic would be more complex
-            filename = f"{dataset_name}.{sequencer}.art"
-            files.append(filename)
-        
+            for filename in self.job_outputs(i).values():
+                try:
+                    name = Mu2eName.parse(filename)
+                except ValueError:
+                    continue
+                if name.is_file and str(name.dataset) == target:
+                    files.append(filename)
         return files
+
 
 
 def usage():
@@ -238,31 +176,6 @@ def main():
     if not os.path.exists(args.parfile):
         print(f"Error: File not found: {args.parfile}")
         sys.exit(1)
-    
-    # Print Perl equivalent command
-    perl_cmd = "mu2ejobquery"
-    if args.jobname:
-        perl_cmd += " --jobname"
-    elif args.njobs:
-        perl_cmd += " --njobs"
-    elif args.input_datasets:
-        perl_cmd += " --input-datasets"
-    elif args.input_files:
-        perl_cmd += " --input-files"
-    elif args.output_datasets:
-        perl_cmd += " --output-datasets"
-    elif args.output_files:
-        perl_cmd += f" --output-files {args.output_files}"
-    elif args.codesize:
-        perl_cmd += " --codesize"
-    elif args.extract_code:
-        perl_cmd += " --extract-code"
-    elif args.setup:
-        perl_cmd += " --setup"
-    perl_cmd += f" {args.parfile}"
-    
-    print(f"Running Perl equivalent of:")
-    print(f"{perl_cmd}")
     
     try:
         jp = Mu2eJobPars(args.parfile)

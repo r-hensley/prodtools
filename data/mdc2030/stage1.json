@@ -1,0 +1,19 @@
+[
+    {
+	"desc": "CosmicDSStopsCRY",	
+	"dsconf": "MDC2030af",
+	"fcl": "Production/JobConfig/cosmic/S1DSStopsCRY.fcl",
+	"fcl_overrides": {
+		"services.GeometryService.inputFile": "Offline/Mu2eG4/geom/geom_run2.txt",
+		"outputs.S1LowOutput.fileName": "/dev/null"
+	},
+	"njobs": 20000,
+	"events": 2500000,
+	"run": 1500,
+	"outloc": {
+		"*.art": "tape"
+	},
+	"simjob_setup": "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2025af/setup.sh",
+	"owner": "mu2e"
+    }
+]

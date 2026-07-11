@@ -7,22 +7,29 @@ Usage:
   - Direct file: python3 mu2e_poms_util/json2jobdef.py --help
 """
 import os, sys
-import logging
 import random
 # Allow running this file directly: make package root importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import argparse
 import json
-import subprocess
 from pathlib import Path
 from utils.prod_utils import *
 from utils.mixing_utils import *
-from utils.config_utils import get_tarball_desc, prepare_fields_for_job
+from utils.config_utils import get_tarball_desc, prepare_fields_for_job, normalize_input_data
+from utils.poms_entry import firstjob_of, validate_window
+from utils.job_common import Mu2eName, default_owner
 from utils.jobquery import Mu2eJobPars
 from utils.jobdef import create_jobdef, get_output_dataset_names
 from utils.jobfcl import validate_output_filenames
-from utils.samweb_wrapper import list_files, count_files, locate_file
+from utils.samweb_wrapper import (
+    list_files,
+    count_files,
+    locate_file,
+    files_in_dataset,
+    parents_of_dataset,
+    q_dataset,
+)
 
 
 def _write_random_selection(out_f, query: str, total_needed: int, seed_source: str):
@@ -115,13 +122,14 @@ def _split_text_file_input(config):
     # producing standard filenames like
     #     dts.mu2e.PBINormal_33344.MDC2025ai.001430_00000000.art
     run = int(config.get('run', 0))
-    slug = f"dts.{config.get('owner', 'mu2e')}.{config['desc']}.{config['dsconf']}"
     lines = src.read_text().splitlines()
     chunk_names = []
     for i in range(0, len(lines), split_lines):
         idx = i // split_lines
         chunk_seq = f"{run:06d}_{idx:08d}"
-        chunk_path = chunks_dir / f"{slug}.{chunk_seq}.txt"
+        chunk_path = chunks_dir / str(Mu2eName.build(
+            tier='dts', owner=config['owner'], description=config['desc'],
+            dsconf=config['dsconf'], sequencer=chunk_seq, extension='txt'))
         chunk_path.write_text("\n".join(lines[i:i + split_lines]) + "\n")
         chunk_names.append(chunk_path.name)
 
@@ -216,28 +224,16 @@ def _write_sam_inputs(config, input_data, exclude_files=None):
     explicit so zero-event files aren't silently dropped).
     """
     event_count_positive = bool(config.get('_event_count_positive'))
-    query_template = "dh.dataset={}"
-    if event_count_positive:
-        query_template += " and event_count>0"
 
     with open('inputs.txt', 'w') as out_f:
-        for dataset, merge_factor in input_data.items():
-            random_spec = {}
-            max_nfiles = None
-            if isinstance(merge_factor, dict):
-                random_spec = merge_factor
-                max_nfiles = random_spec.get('max_nfiles')
-                if max_nfiles is not None:
-                    if not isinstance(max_nfiles, int) or max_nfiles <= 0:
-                        raise ValueError(f"input_data spec for {dataset}: max_nfiles must be a positive int, got {max_nfiles!r}")
-                merge_factor = merge_factor.get('count') or merge_factor.get('merge_factor')
-                if merge_factor is None:
-                    raise ValueError(f"input_data spec for {dataset} must include 'count' or 'merge_factor' when using dict form")
+        for spec in normalize_input_data(input_data):
+            if spec.per_job is None:
+                raise ValueError(f"input_data spec for {spec.source} must include 'count' or 'merge_factor' when using dict form")
 
-            query = query_template.format(dataset)
+            query = q_dataset(spec.source, with_events=event_count_positive)
 
-            if random_spec.get('random'):
-                per_job = int(merge_factor)
+            if spec.random:
+                per_job = spec.per_job
                 try:
                     njobs = int(config.get('njobs', 1))
                 except (TypeError, ValueError):
@@ -248,17 +244,17 @@ def _write_sam_inputs(config, input_data, exclude_files=None):
                     njobs = max(1, available // max(per_job, 1))
 
                 total_needed = per_job * max(njobs, 1)
-                if max_nfiles is not None:
-                    total_needed = min(total_needed, max_nfiles)
+                if spec.max_nfiles is not None:
+                    total_needed = min(total_needed, spec.max_nfiles)
                 seed_source = (
                     f"{config.get('owner','')}.{config.get('desc','')}.{config.get('dsconf','')}"
-                    f".{dataset}.{per_job}.{njobs}"
+                    f".{spec.source}.{per_job}.{njobs}"
                 )
                 _write_random_selection(out_f, query, total_needed, seed_source)
             else:
                 files = list_files(query)
-                if max_nfiles is not None:
-                    files = sorted(files)[:max_nfiles]
+                if spec.max_nfiles is not None:
+                    files = sorted(files)[:spec.max_nfiles]
                 for filepath in files:
                     if exclude_files and filepath in exclude_files:
                         continue
@@ -271,10 +267,11 @@ def _next_version(config):
     max(existing versions) + 1, or 0 if none exist.
     """
     desc = get_tarball_desc(config) or config['desc']
-    dataset = f"cnf.{config['owner']}.{desc}.{config['dsconf']}.tar"
+    dataset = str(Mu2eName.build(tier='cnf', owner=config['owner'], description=desc,
+                                 dsconf=config['dsconf'], extension='tar'))
 
     try:
-        files = list_files(f"dh.dataset={dataset}")
+        files = files_in_dataset(dataset)
     except Exception:
         return 0
 
@@ -305,8 +302,7 @@ def _compute_extend_exclusions(config):
 
     exclude_files = set()
     for ds in output_datasets:
-        query = f"isparentof: (dh.dataset {ds})"
-        parents = list_files(query)
+        parents = parents_of_dataset(ds)
         exclude_files.update(parents)
         print(f"  Output dataset {ds}: {len(parents)} already-processed input files")
 
@@ -317,24 +313,27 @@ def _compute_extend_exclusions(config):
     return exclude_files
 
 
+def _cnf_name(config, extension):
+    """Canonical cnf name for this config via Mu2eName.build (validates
+    fields — a desc/dsconf containing '.' fails loudly here instead of
+    producing an unparseable name downstream)."""
+    desc = get_tarball_desc(config) or config['desc']
+    return str(Mu2eName.build(
+        tier='cnf', owner=config['owner'], description=desc,
+        dsconf=config['dsconf'], sequencer=str(config.get('version', 0)),
+        extension=extension))
+
 def get_parfile_name(config):
     """Generate consistent parfile name from config."""
-    desc = get_tarball_desc(config) or config['desc']
-    version = config.get('version', 0)
-    return f"cnf.{config['owner']}.{desc}.{config['dsconf']}.{version}.tar"
+    return _cnf_name(config, 'tar')
 
 def get_fcl_name(config):
     """Generate consistent FCL filename from config."""
-    desc = get_tarball_desc(config) or config['desc']
-    version = config.get('version', 0)
-    return f"cnf.{config['owner']}.{desc}.{config['dsconf']}.{version}.fcl"
+    return _cnf_name(config, 'fcl')
 
-def validate_required_fields(config, required_fields=None):
+def validate_required_fields(config):
     """Validate that config has all required fields."""
-    if required_fields is None:
-        required_fields = ('simjob_setup', 'fcl', 'dsconf', 'outloc')
-    
-    for req in required_fields:
+    for req in ('simjob_setup', 'fcl', 'dsconf', 'outloc'):
         if not config.get(req):
             sys.exit(f"Missing required field: {req}")
 
@@ -353,8 +352,8 @@ def determine_job_type(config):
     """
     input_data = config.get('input_data')
     if isinstance(input_data, dict):
-        first_value = next(iter(input_data.values()), None)
-        if isinstance(first_value, dict) and 'chunk_lines' in first_value:
+        specs = normalize_input_data(input_data)
+        if specs and specs[0].chunk_lines is not None:
             return 'chunk'
     if 'resampler_name' in config:
         return 'resampler'
@@ -373,14 +372,17 @@ def build_jobdef(config, job_args, json_output=False):
     job_type = determine_job_type(config)
 
     if job_type != 'mixing':
-        write_fcl_template(fcl_path, config.get('fcl_overrides', {}))
-    
-    # Add MaxEventsToSkip parameter for resampler jobs after template is written
-    if job_type == 'resampler':
-        with open('template.fcl', 'a') as f:
-            f.write(f"physics.filters.{config['resampler_name']}.mu2e.MaxEventsToSkip: {config['_max_events_to_skip']}\n")
-    
-    # Build the Perl commands that would be equivalent (always build for potential display)
+        # Resampler MaxEventsToSkip goes after the overrides (last wins)
+        post_lines = []
+        if job_type == 'resampler':
+            post_lines.append(
+                f"physics.filters.{config['resampler_name']}.mu2e.MaxEventsToSkip: {config['_max_events_to_skip']}")
+        write_fcl_template(fcl_path, config.get('fcl_overrides', {}),
+                           post_lines=post_lines)
+
+    # Perl-equivalent command string. Kept even though create_jobdef echoes
+    # its own version: test/parity_test.py consumes this exact string via
+    # result['perl_commands'] to run the Perl mu2ejobdef comparison.
     cmd_parts = [
         'mu2ejobdef',
         '--setup', config['simjob_setup'],
@@ -400,17 +402,12 @@ def build_jobdef(config, job_args, json_output=False):
     # Add job_args and template
     cmd_parts.extend(job_args)
     cmd_parts.extend(['--embed', 'template.fcl'])
-    
-    # Always show the mu2ejobdef equivalent command when verbose logging is enabled
-    if logging.getLogger().level <= logging.DEBUG:
-        print(f"🐪 mu2ejobdef equivalent command: {' '.join(cmd_parts)}")
-    
+
     # Now create jobdef using the template.fcl
     create_jobdef(config, fcl_path='template.fcl', job_args=job_args, embed=True, quiet=json_output)
 
     # Get the parfile name for both modes
     parfile_name = get_parfile_name(config)
-    fcl_file = get_fcl_name(config)
 
     # Build-time guard: ensure every outputs.*.fileName substitutes cleanly.
     # Catches missing fcl_overrides for outputs whose upstream defaults embed
@@ -433,20 +430,13 @@ def build_jobdef(config, job_args, json_output=False):
                     'command': ' '.join(cmd_parts),
                     'desc': config['desc'],
                     'simjob_setup': config['simjob_setup']
-                },
-                {
-                    'type': 'mu2ejobfcl',
-                    'command': f"mu2ejobfcl --jobdef {parfile_name} --default-location tape --default-protocol root --index 0 > {fcl_file}",
-                    'desc': config['desc'],
-                    'index': 0
                 }
             ]
         }
         return result
     else:
-        # Human-readable output (current behavior)
-        print(f"Python mu2ejobdef equivalent command: {' '.join(cmd_parts)}")
-        print(f"Running Perl equivalent of: mu2ejobfcl --jobdef {parfile_name} --default-location tape --default-protocol root --index 0 > {fcl_file}")
+        # Human-readable output (create_jobdef already echoed the mu2ejobdef
+        # equivalent when quiet=False)
         return None
 
 def append_jobdef(config, jobdefs_file=None):
@@ -464,15 +454,38 @@ def append_jobdef(config, jobdefs_file=None):
         "outputs": []
     }
 
+    # Optional cnf-index window start (statistics expansion; semantics
+    # in utils/poms_entry.py). firstjob_of/validate_window are the single
+    # validation authority — shared with the submit path.
+    try:
+        firstjob = firstjob_of(config)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    if firstjob and is_generic:
+        print("Error: firstjob requires a fixed job count (njobs); "
+              "generic tarball entries have no index window")
+        sys.exit(1)
+
     # Generic tarballs have no pre-determined job count — omit njobs so
     # runmu2e detects direct-input mode (absence of njobs is the trigger)
     if not is_generic:
         njobs = config['njobs']
+        jp = None
         if njobs == -1:
             jp = Mu2eJobPars(parfile_name)
             njobs = jp.njobs()
             print(f"Queried job count: {njobs}")
         jobdef_entry["njobs"] = njobs
+        if firstjob:
+            capacity = (jp or Mu2eJobPars(parfile_name)).njobs()
+            try:
+                validate_window(firstjob, njobs, capacity)
+            except ValueError as e:
+                print(f"Error: {e} for {parfile_name}")
+                sys.exit(1)
+            jobdef_entry["firstjob"] = firstjob
+            print(f"Windowed entry: cnf indices {firstjob}..{firstjob + njobs - 1}")
     
     # Handle outloc - must be dict with dataset-specific locations
     outloc = config['outloc']
@@ -512,10 +525,14 @@ def _write_jobdef_json_entry(jobdef_entry, jobdefs_file=None):
             print(f"Warning: Could not parse existing {dsconf_file}, starting fresh")
             existing_entries = []
     
-    # Check for duplicate tarball entries
+    # Check for duplicate (tarball, firstjob) entries — the same tarball
+    # may legitimately appear once per index window (statistics expansion),
+    # but the same window must not be dispatched twice.
     tarball_name = jobdef_entry["tarball"]
+    new_firstjob = firstjob_of(jobdef_entry)
     for existing in existing_entries:
-        if existing.get("tarball") == tarball_name:
+        if (existing.get("tarball") == tarball_name
+                and firstjob_of(existing) == new_firstjob):
             print(f"Entry already exists in {dsconf_file}")
             return
     
@@ -538,7 +555,6 @@ def main():
     p.add_argument('--verbose', action='store_true', help='Verbose logging')
     p.add_argument('--no-cleanup', action='store_true', help='Keep temporary files (inputs.txt, template.fcl, *Cat.txt)')
     p.add_argument('--jobdefs', help='Custom filename for jobdefs list (default: jobdefs_list.json)')
-    p.add_argument('--json-output', action='store_true', help='Output structured JSON instead of human-readable text')
     p.add_argument('--extend', action='store_true',
                    help='Create delta job definition excluding already-processed inputs. '
                         'Auto-increments tarball version.')
@@ -558,25 +574,17 @@ def main():
     # Load and expand the JSON configuration once
     expanded_configs = load_json(Path(args.json))
     
-    # If both desc and dsconf are specified, process single entry
-    if args.desc and args.dsconf and args.index is None:
-        config = find_json_entry(expanded_configs, args.desc, args.dsconf, None)
-        config['_event_count_positive'] = args.event_count_positive
-        process_single_entry(
-            config,
-            json_output=True,
-            pushout=args.pushout,
-            no_cleanup=args.no_cleanup,
-            jobdefs_list=args.jobdefs,
-            extend=args.extend,
-            ignore_empty=args.ignore_empty,
-        )
-    # If dsconf is specified but no desc and no index, process all entries for that dsconf
-    elif args.dsconf and args.desc is None and args.index is None:
+    # Bulk mode: dsconf only → every entry at that dsconf
+    if args.dsconf and args.desc is None and args.index is None:
         process_all_for_dsconf(expanded_configs, args.dsconf, args)
-    # If only index is specified, process single entry by index
-    elif args.index is not None and args.desc is None and args.dsconf is None:
-        config = find_json_entry(expanded_configs, None, None, args.index)
+    else:
+        # Scalar modes: --desc + --dsconf, or --index only
+        if args.desc and args.dsconf and args.index is None:
+            config = find_json_entry(expanded_configs, args.desc, args.dsconf, None)
+        elif args.index is not None and args.desc is None and args.dsconf is None:
+            config = find_json_entry(expanded_configs, None, None, args.index)
+        else:
+            sys.exit("Please specify either --desc AND --dsconf, --dsconf only, or --index only")
         config['_event_count_positive'] = args.event_count_positive
         process_single_entry(
             config,
@@ -587,9 +595,6 @@ def main():
             extend=args.extend,
             ignore_empty=args.ignore_empty,
         )
-    else:
-        # No filtering specified, show usage
-        sys.exit("Please specify either --desc AND --dsconf, --dsconf only, or --index only")
     
     # If --prod mode, create index definition after generation
     if args.prod:
@@ -598,23 +603,7 @@ def main():
         print(f"\n{'='*60}")
         print(f"Creating index definition from {jobdefs_file}")
         print(f"{'='*60}")
-        
-        # Load jobdefs to calculate total jobs
-        with open(jobdefs_file, 'r') as f:
-            jobdefs = json.load(f)
-        
-        total_jobs = sum(j.get('njobs', 0) for j in jobdefs)
-        
-        # Print summary
-        for i, j in enumerate(jobdefs):
-            outputs = ", ".join(f"{o['dataset']}→{o['location']}" for o in j['outputs'])
-            print(f"[{i}] {j['tarball']}: {j['njobs']} jobs, input={j['inloc']}, outputs={outputs}")
-        
-        print(f"\nTotal: {total_jobs} jobs")
-        
-        # Create index definition
-        map_stem = Path(jobdefs_file).stem
-        create_index_definition(map_stem, total_jobs, "etc.mu2e.index.000.txt")
+        summarize_and_index(jobdefs_file, prod=True)
 
 def _build_job_args(config):
     """Dispatch on `determine_job_type(config)` and return the per-mode
@@ -623,13 +612,9 @@ def _build_job_args(config):
     job_type = determine_job_type(config)
 
     if job_type == 'resampler':
+        first_dataset = normalize_input_data(config['input_data'])[0].source
         try:
-            input_data = config['input_data']
-            if not isinstance(input_data, dict):
-                raise ValueError(f"input_data must be a dict, got {type(input_data)}")
-            first_dataset = list(input_data.keys())[0]
-            nfiles, nevts = get_def_counts(first_dataset)
-            config['_max_events_to_skip'] = nevts // nfiles
+            config['_max_events_to_skip'] = max_events_to_skip(first_dataset)
         except Exception as e:
             print(f"Warning: Could not calculate MaxEventsToSkip for {first_dataset}: {e}")
         merge_factor = calculate_merge_factor(config)
@@ -664,9 +649,7 @@ def _pushout_to_sam(parfile_name):
         return
 
     print(f"Pushing {parfile_name} to SAM...")
-    with open('outputs.txt', 'w') as f:
-        f.write(f"disk {parfile_name} none\n")
-    run('pushOutput outputs.txt', shell=True)
+    push_output([('disk', parfile_name, 'none')], 'outputs.txt')
 
 
 def _cleanup_temp_files():
@@ -683,7 +666,7 @@ def process_single_entry(config, json_output=True, pushout=False, no_cleanup=Tru
                          jobdefs_list=None, extend=False, ignore_empty=False):
     """Process a single configuration entry (original behavior)"""
     validate_required_fields(config)
-    config['owner'] = config.get('owner', os.getenv('USER', 'mu2e').replace('mu2epro', 'mu2e'))
+    config['owner'] = config.get('owner', default_owner())
     config['inloc'] = config.get('inloc', 'none')
     config['njobs'] = config.get('njobs', -1)
 
@@ -697,9 +680,6 @@ def process_single_entry(config, json_output=True, pushout=False, no_cleanup=Tru
     if not config.get('desc'):
         config = prepare_fields_for_job(config, job_type='standard')
     
-    # Store the original FCL path for source type detection
-    original_fcl_path = config['fcl']
-    
     # Extend mode: exclude already-processed input files and auto-increment version
     exclude_files = None
     if extend:
@@ -709,22 +689,17 @@ def process_single_entry(config, json_output=True, pushout=False, no_cleanup=Tru
     if config.get('input_data'):
         _create_inputs_file(config, exclude_files=exclude_files)
 
-    # Check for empty inputs
-    if Path('inputs.txt').exists():
-        remaining = sum(1 for _ in open('inputs.txt'))
-        if remaining == 0:
-            if extend:
-                print(f"  Extend summary: {len(exclude_files)} excluded, 0 remaining input files")
-            if ignore_empty:
-                print(f"  Skipping {config.get('desc', 'unknown')}: no input files available")
-                return None
-            elif extend:
-                sys.exit("--extend: no new input files to process")
-
+    # Check for empty inputs (count once; one extend summary print)
+    remaining = sum(1 for _ in open('inputs.txt')) if Path('inputs.txt').exists() else 0
     if extend and exclude_files is not None:
-        remaining = sum(1 for _ in open('inputs.txt')) if Path('inputs.txt').exists() else 0
         print(f"  Extend summary: {len(exclude_files)} excluded, {remaining} remaining input files")
-    
+    if Path('inputs.txt').exists() and remaining == 0:
+        if ignore_empty:
+            print(f"  Skipping {config.get('desc', 'unknown')}: no input files available")
+            return None
+        elif extend:
+            sys.exit("--extend: no new input files to process")
+
     job_args = _build_job_args(config)
 
     # build_jobdef handles FCL template creation for non-mixing jobs
@@ -758,12 +733,8 @@ def is_already_expanded(configs):
         if not isinstance(config, dict):
             raise ValueError(f"Entry {i} is not a dictionary: {type(config)}")
         
-        # Check if this config has lists (needs expansion)
-        values = list(config.values())
-        has_lists = any(isinstance(v, list) for v in values)
-        
         # If any config has lists, the whole configuration needs expansion
-        if has_lists:
+        if any(isinstance(v, list) for v in config.values()):
             return False
     
     # If no configs have lists, they're all already expanded

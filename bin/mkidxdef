@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Simple shell wrapper for jobdefs_expander.py
+# Simple shell wrapper for mkidxdef.py
 # Sets up Mu2e environment and calls the Python script
 
 # Check required arguments

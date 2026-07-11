@@ -439,3 +439,206 @@ Reason: 4 entries appended to data/Run1B/primary_muon.json (after Run1Bai-001 bl
 ## [2026-06-15] ingest | Run1Ban STM resampler entries added
 Pages written: 2026-06-15-run1ban-stm-resampler-port
 Pages updated: run1ban-campaign, index
+
+## [2026-06-28] update | run1ban-campaign downstream (mixing/reco/evnt)
+Pages updated: run1ban-campaign
+Note: pushed generic evnt cnf cnf.mu2e.evnt.Run1Ban_best_v1_4-000.0.tar + jobdesc Run1Ban-evnt.json; documented Mix1BB conditions + -KL reco/evnt generic chain.
+
+## [2026-07-02] decision | jobdef arithmetic consolidation + tbs.njobs self-description
+Pages written: 2026-07-02-jobdef-arithmetic-and-tbs-njobs
+Pages updated: index
+Note: hoisted sequencer/job_outputs/job_event_settings/job_seed/njobs into Mu2eJobBase (jobfcl semantics canonical); deleted utils/jobiodetail.py; json2jobdef now embeds tbs.njobs (declared-or-derived, absent for generic/legacy = open-ended); compare_tarballs.sh dels tbs.njobs; 292 unit tests green incl. 16 new regressions; smoke-verified NoPrimary/Run1Bai build round-trip.
+
+## [2026-07-03] plan | file-location resolver + SAM query module (approved, not started)
+Pages written: 2026-07-03-file-resolver-and-sam-query-plan
+Pages updated: index
+Note: user approved review candidates #1+#3 ("Do 1 and 2"); plan documented with current code anchors, proposed shape, open grilling questions, bug-for-bug worker-path acceptance criteria, and the leftover quick wins (chain_emit Mu2eName, owner-default copies, _compute_jobset relaxation, source-type unification).
+
+## [2026-07-03] update | Run1Ban NoPrimaryMix1BB reprocessing at v1_5, pushed to production
+Pages updated: run1ban-campaign
+Note: new dsconf Run1Ban_best_v1_5-000 (DB v1_5 native run-1470 coverage, CaloDtsClusterFilter enabled ~10x smaller/4x faster output, merge-factor-10 job packaging validated end-to-end); fixed mixing_utils.py bool-override serializer bug found along the way; pushed 2000 jobs to MDC2025-032 (34599 total).
+
+## [2026-07-06] update | File resolver + SAM query module refactor implemented
+Pages updated: 2026-07-03-file-resolver-and-sam-query-plan
+Note: samweb_wrapper deepened (q_* builders + fail-loud named queries, absorbed jobfcl raw client + latestDatasets CLI); new utils/file_resolver.py owns all dCache/CVMFS path grammar (stash/resilient/dataset_dir/storage_scope) with FileResolver(inloc,proto) reproducing jobfcl bug-for-bug; jobfcl/stash_utils/datasetFileList/jobsub_argv delegate. Verified: 8/8 fcl outputs byte-identical on real cnfs across all inloc/proto combos; 292 unit tests at baseline pass state.
+
+## [2026-07-06] update | Review quick wins + test hygiene
+Pages updated: none
+Note: chain_emit.output_datasets now parses/builds via Mu2eName (last core-path grammar bypass gone); owner-default USER->mu2e consolidated into job_common.default_owner() (was copied in jobdef.py x2, json2jobdef.py, Mu2eJobBase); DB-backed tests skipUnless(SQLAlchemy) so plain-ops runs are clean — OK (skipped=11) without pyenv ana, 292/292 OK with it.
+
+## [2026-07-06] lint | 6 errors, 2 warnings, 3 info
+Report: [[lint-2026-07-06]]
+Fixed: all 6 broken-link sites (3 recurring slugs: raw-doc refs in pbi-sequence-workflow / extend-jobdef-per-index-overrides / metacat-reference converted to plain wiki/raw paths; memory cross-ref in mu2ename-unified-grammar converted to plain text; prodtools-prd gotcha updated), index contradiction on file-resolver plan page (proposed → implemented), orphan fixed via backlink from 2026-07-02-jobdef-arithmetic-and-tbs-njobs. Remaining: overview.md refresh recommended (stale since 2026-06-07).
+
+## [2026-07-06] update | /simplify pass: 4-angle review applied (reuse/simplification/efficiency/altitude)
+Pages updated: none
+Note: ~25 findings fixed across 20 files — utils/__init__ emptied (kills eager samweb import tax + lazy-import workarounds), stash_utils copy-pair merged (~75 dup lines), db location classifier single-homed, json2jobdef/mkidxdef --prod block shared (summarize_and_index), expand_configs single-path, Mu2eName.build adopted at 9 name-assembly sites (cnf/nts/log/etc/dts), mkrecovery substring dataset match -> structured compare, batch locateFiles prefetch in worker fcl path (~90 seq SAM calls -> 1 per mixing job), Mu2eJobBase per-instance member cache, gfal2 context reuse, famtree --png NameError fixed. Verified: 292/292 tests both envs, 8/8 fcl outputs byte-identical incl. batch-locate tape path. Design-decision items deferred (template-writer unification, input_data normalizer, protocol-table divergence, njobs sentinel).
+
+## [2026-07-07] update | Deferred-simplify follow-up: protocol table single-homed + template.fcl writer unified
+Pages updated: none
+Note: (1) submit.py INLOC_TO_PROTOCOL deleted — mu2ejobsub backend now uses jobsub_argv.default_protocol_for_inloc (the canonical table); fixes the latent resilient bug where a resilient-inloc entry got --default-location resilient with NO --default-protocol (mu2ejobsub would default to file → POSIX /pnfs reads on workers). Resilient now maps to root, verified via dry-run argv. (2) template.fcl now has exactly ONE writer: prod_utils.write_fcl_template(base, overrides, pre_lines, post_lines) — build_pileup_args passes pbeam include + per-mixer MaxEventsToSkip as pre_lines (overridable by fcl_overrides), json2jobdef resampler passes MaxEventsToSkip as post_lines (beats overrides, preserving historical append order); the duplicated override-serializer (origin of the bool FHiCL bug) is gone. Verified: 296/296 tests OK; plain/resampler/mixing cnf rebuilds byte-identical (mu2e.fcl + jobpars.json) vs pre-change baseline.
+
+## [2026-07-07] update | /simplify round 2: 4-angle review applied
+Pages updated: none
+Note: ~16 findings fixed across 11 utils modules + tests. Headliners: (1) njobs capacity arithmetic single-homed in job_common.tbs_capacity (was duplicated reader/writer between Mu2eJobBase.njobs and jobdef._resolve_njobs, with validation drift); (2) SAM location-record→path grammar single-homed in file_resolver.sam_physical_path/path_from_sam_location — stash_utils, mkrecovery, db_builder, datasetFileList migrated (db_builder's loose colon-split and everyone's missing '(pool@node)' suffix handling fixed for free); (3) worker per-job path: one Mu2eJobPars per process_jobdef call instead of three (chunk check + input listing + setup extraction share the instance) and copy_input batch-locates all inputs in one SAM call; (4) datasetFileList batch locate (was N scalar calls to the batch API); (5) submit.py backends share _ensure_local_tarball + _run_submit (~60 dup lines gone); (6) MaxEventsToSkip derivation shared (prod_utils.max_events_to_skip); (7) jobdef: _parse_job_args rewritten as one ladder (was 3 parallel structures), dead --override-output-description plumbing removed, --samplinginput now actually forwarded by the CLI (was argparse'd and dropped — SamplingInput jobdefs were unbuildable via bin/jobdef), _seed_needed literals inlined; (8) write_fcl builds the fcl name via Mu2eName; (9) json2jobdef: _pushout_to_sam reuses push_output, main branches deduped, extend summary single-pass, double command echo removed. Verified: 296/296 both suites, plain/resampler/mixing cnf rebuilds byte-identical (mu2e.fcl + jobpars.json) vs the pre-round-1 baseline, resilient dry-run submit argv unchanged. Deferred (design decisions): fake-fname index round-trip, underscore-key config smuggling, track_parents choke point, job_chunk API, tier_class/remove_storage_prefix module home, source-type-in-jobpars, 7-tier prefix tuple in job_outputs (flagged for /code-review — latent behavior gap for mix/ntd/log outputs), log_storage_location move, fhicl-get transport batching, jobdef_lookup memo, validator table rewrite, mdh copy grouping.
+
+## [2026-07-07] update | Tier-1 dead-code cleanup (usage-based, 3-agent investigation)
+Pages updated: none
+Note: deleted ~800 lines dead by usage+reachability+supersession triangulation: data/mdc2020/ (5 configs, zero mentions in 3 months of ops), poms/*.cfg (pre-April POMS workflow), utils/plot_logs.py (whole-module orphan), bin/add_inputs_from_list.py + bin/plot_straw_hits.py (EXAMPLES-only), mixconf/merge_events keys across 4 mix.json files (zero code readers — verified inert by byte-identical mixing cnf rebuild), test-pinned corpses (jobdef_lookup.cnf_for_output/cnf_njobs_for_output, chain_emit.stage_for_tier/TIER_TO_STAGE/dataset_complete + their 5 tests), json2jobdef's never-consumed mu2ejobfcl parity dict (parity_test filters type==mu2ejobdef only), jobquery.parfile duplicate attr, stale shim comments, orphan pyc. Investigation verdict recorded: POMS mode, mu2ejobsub backend, samweb passthroughs, tbs.njobs fallthrough all STILL-LIVE (production path or documented decision). Roadmap gap surfaced: direct path has no submit→track→recover loop (utils/recover.py never built) — the structural reason POMS machinery cannot retire. Verified: 291/291 tests, 3/3 cnf rebuilds byte-identical.
+
+## [2026-07-07] update | input_data shape normalizer (last big deferred /simplify item)
+Pages updated: none
+Note: config_utils.normalize_input_data(input_data) -> [InputSpec(source, per_job, random, max_nfiles, split_lines, chunk_lines)] is now the single home of the input_data shape grammar. Migrated: json2jobdef._write_sam_inputs (spec loop), determine_job_type (chunk detection), _build_job_args resampler (first source), prod_utils.calculate_merge_factor, config_utils.prepare_fields_for_job (dict branch). Fail-loud tightenings: unknown spec keys now raise (typo protection — config scan verified only count/merge_factor/random/max_nfiles/chunk_lines exist in the wild); count-vs-merge_factor precedence unified to truthy-count-wins (the two old copies disagreed on count=0). chunk/split helpers (_configure_chunk_mode/_split_text_file_input) stay shape-routed as-is. Verified: 301/301 tests (10 new), plain/resampler/mixing cnf rebuilds byte-identical. This normalized shape is what predictive-naming's predict_outputs() would consume ([[predictive-naming-proposal]]).
+
+## [2026-07-07] ingest | justIN vs prodtools comparison
+Pages written: justin-vs-prodtools
+Pages updated: index.md
+Note: DUNE justIN docs (v01.06.01, fetched live) mapped onto prodtools concepts. Verified mechanics: generic jobs + justin-get-file (DID/PFN/RSE per call), MQL inputs, --monte-carlo N, unallocated→allocated→processed state machine with auto-reset of unlisted files (built-in per-file recovery), --output-pattern/-next-stage + MetaCat .json sidecars. Core inversion documented: JIT allocation vs frozen cnf input lists — justIN has the submit→track→recover loop the direct path lacks; prodtools has deterministic job identity justIN lacks. Poor fits: mixing's structured aux inputs, byte-reproducible fcl. Adoption shape: justIN takes submit/track/recover, prodtools becomes the payload builder (samweb_wrapper seam = single-module MetaCat port).
+
+## [2026-07-07] update | justin-vs-prodtools: n→1 determinism section
+Pages updated: justin-vs-prodtools
+Note: verified from file_processing.md — multi-file jobs = jobscript loops justin-get-file (no grouping flag); partition non-deterministic on three grounds (live-queue allocation with replica locality, concurrent interleaving, failure-reset reallocating files to OTHER jobs ≤6 attempts). justIN = provenance after the fact; prodtools = prediction before the fact. Matters when merged files are citable artifacts (Cat datasets referenced by name downstream).
+
+## [2026-07-09] production | MDC2025ar mix round — 4 primaries added
+Extended templates/MDC2025/mix.json roster (entry 1) with DIOtail95,
+RPCExternalPhysical, RPCInternalPhysical, IPAMuminusMichel. Emitted via
+`latestDatasets --emit mix --campaign MDC2025ar --skip-produced` (auto-resolved
+to MDC2025ap primaries, 5000 files each), pushed `json2jobdef --prod` to POMS map
+MDC2025-032.json (9→13 entries, 34599→54599 jobs). All 4 cnf tarballs SAM-registered,
+RC=0. Verified: fcldump of DIOtail95 mix fcl shows 4 pileup mixers wired, DbService
+Sim_best/v1_3, run 001430 — structurally identical to the 11 ar mixes already in
+production. Memory: reference_mdc2025ar_mix_round.
+
+## [2026-07-09] production | RMC ap remake — Phase 1 primaries
+Added RMCExternal + RMCInternal @ MDC2025ap to data/mdc2025/primary_muon.json
+(resample MuminusStopsCat.MDC2025ac, geom_run1_a.txt, outloc disk). Reduced stats
+per user: RMCExternal events 2M→400k keeping 5000 jobs (~17h→~3-4h/job, 5× less
+total events ~314k), RMCInternal njobs 5000→1000 (~1.9M events). Pushed --prod to
+MDC2025-032 (54599→60599 jobs), both cnfs SAM-registered RC=0. Staged for later:
+merge_filter.json RMCExternalCat (artcat merge 5, Phase 2 after grid completion) →
+then mix into ar round (Phase 3). Memory: project_rmc_ap_remake.
+
+## [2026-07-09] rule + incident | mixing pileup → resilient
+MDC2025ar mix jobs failed with FileOpenError opening a tape pileup file
+(NeutralsFlashCat.MDC2025ad, evicted). Root cause: MDC2025 mix template used
+inloc=tape and the 4 pileup Cats were tape-only. Rule: mixing pileup must be
+resilient (inloc=resilient AND Cats physically staged to /pnfs/mu2e/resilient),
+matching the working Run1Ban mixes. Flipped inloc tape→resilient in
+templates/MDC2025/mix.json + data/{mdc2025,Run1B,mdc2030}/mix.json mixing entries
+(outloc→tape unchanged; stash entries left as-is). Staged the 4 MDC2025 pileup
+Cats to resilient (~1470 files, ~156GB) and flipped inloc in POMS map MDC2025-032
+ar mix entries. Memory: reference_mixing_pileup_resilient_rule.
+
+## [2026-07-09] incident | Run1Ban mix 54-file loss — mechanism nailed
+Full SAM forensics of dig.mu2e.NoPrimaryMix1BB.Run1Ban_best_v1_4-000 (19946/20000).
+Four layers: POMS re-queued completed indices (51333 logs/20k outputs); pushOutput
+recoverDelay=3600s clobber-rewrote 6240 good outputs (books balance: 26239 records
+= 19999 originals + 6240 redeclares; 6293 retires = 6240 paired + 53 dangling);
+53 final rewrites (all written Jul 4 23:30–Jul 5 00:19 + one 03:46) vanished from
+dCache off-grid Jul 5–9 (no SAM trace; pool-loss-of-unflushed vs cleanup script —
+dCache billing decides); sweep retired the 53 danglers Jul 9 21:59:26–33Z (7/s,
+sorted burst). Key tools: `with availability retired` + get-metadata by file_id
+(Retired Date faithful, calibrated), log-name epochs as round map, cnf jobpars
+index mapping. Page: [[2026-07-05-run1ban-mix-recovery-data-loss]]. Memory:
+reference_run1ban_mix_recovery_loss.
+
+## [2026-07-10] decision | firstjob index windows implemented
+POMS-map entries gained `firstjob` — windows an entry into cnf indices
+`[F, F+njobs)` so a dataset can be extended with fresh seeds
+(baseSeed = 1 + cnf index) while reusing the existing tarball; the old
+version/run-bump convention duplicates physics on same input and is
+retired for expansions. Dispatch arithmetic extracted into pure
+`resolve_map_index` (+21 unit tests); json2jobdef dedupe now
+(tarball, firstjob); mu2ejobsub backend emits `--firstjob/--njobs`;
+mkrecovery + db_builder window-aware. First use: MuStopPileup.Run1Ban
+5000→+N expansion. Page: [[2026-07-10-firstjob-index-windows]].
+
+## [2026-07-10] run | MuStopPileup.Run1Ban expansion submitted (firstjob first use)
+First production use of the firstjob index window: map
+poms_map/Run1Ban-pileupext.json (existing cnf.mu2e.MuStopPileup.Run1Ban-001.0.tar,
+firstjob=5000, njobs=5000, inloc=resilient) submitted via
+`submit_map --backend direct` as mu2epro → cluster 28708717 (5000 jobs,
+cnf indices 5000..9999 → baseSeed 5001..10000, sequencers 001470_00005000+).
+Pre-staged the 2 MuminusStopsCat.Run1Ban inputs to resilient (tape-custody,
+no resilient copy — June run rode the disk cache). Gotcha: jobsub under ksu
+needs USER/LOGNAME/HOME/XDG_RUNTIME_DIR re-exported for mu2epro or
+condor_vault_storer fails (first attempt submitted NOTHING despite rc=0 —
+verified via jobsub_q before retrying). Recovery will be manual mkrecovery
+(user choice); Cat step must APPEND. Page: [[2026-07-10-firstjob-index-windows]].
+
+## [2026-07-10] ops | pomsMonitor dashboard refreshed + render import fix
+`update_pomsmonitor_web` run (DB rebuilt from MDC202* maps; render step
+initially failed: bin/pomsMonitorWeb imported `locate_file` from
+utils.db_builder, removed by the 2026-07-06 SAM single-homing refactor —
+fixed to import from utils.samweb_wrapper). index.html 29.8 KB /
+jobs.json 503 KB (1024 jobs) published 13:01.
+
+## [2026-07-10] analysis | Run1Bai vs Run1Ban stop-rate drop decomposed (measured)
+StoppedParticlesDumper (leaves mode, TargetStopFilter) on one MuminusStopsCat
+file each (=1e9 resampled events both): ratio 2.56 = 1.58 halo suppression
+(v06 set Coll5 material=DSVacuum; 49.6% of Bai stops at r>128mm ending exactly
+at r=248 = Coll5 jacket radius; Ban halo/core 0.66 vs Bai 1.62) x 1.62
+core-level (1.14 Al thickness 20->17.5mm, ~1.4 beam-parent chain/release).
+NO stops beyond r~250 in either config (TS5 bore caps the envelope — the
+600mm wall area is irrelevant, as is "tracker-facing radii"). v40 mobile-target
+disk measured at z=4236-4250, BEHIND the plate hole (69% disk / 31% plate).
+SimEff2 flash x5 = x2.5 interception + ~x2 presumed poly-absorber (unmeasured).
+Also: Run1Bai SimEfficiencies2 textFile carries a live x100 eff-column typo
+(NeutralsFlashCat 7.196e-08 vs true 7.196e-06; Offline findEff consumes the
+eff column). Memory: reference_simeff2_eff_column_and_bai_typo.
+
+## [2026-07-10] incident | nightly extracted validation red since 07-02 (CRV channels)
+All 5 extracted jobs crash at first event with CRVCALIBMAKE_BAD_N_CHANNEL
+(geometry 2304 vs CRVSiPM/CRVTime 2048) since the 07/02 nightly. Cause:
+Offline#1864 (ehrlich-uva, merged 07-02 02:01 UTC) added muon taggers to the
+extracted/KPP CRV (+256 ch) with text calibs only — its own description says
+DB tables still needed. Nightly fcl reads CRV calib fromDb (Sim_best/v1_5).
+Fix: commit 2304-ch tables + extend Sim_best, or switch validation to
+epilog_extracted_v04 textFile calib. Logs:
+/pnfs/.../valjob2/YYYY/MM/DD/extracted/log/*_crashed. Memory:
+reference_extracted_nightly_crv_failure.
+
+## [2026-07-10] analysis | MuStopPileup G4 CPU anatomy (5-way + neutron decomposition)
+Measured (2k then 20k-event A/B on the Run1Ban cnf, local): g4run = 94% of job
+CPU at 0.75% pass rate; capture-NEUTRON transport = 85% of g4 time, sub-keV
+thermal walk = 42% of the whole job; soft photons free; minRangeCut -7% and
+distorts the calo-sum keep rate. Every neutron-trimming knob loses kept events
+proportionally (timecut100us -18%CPU/-13%kept; 1keV floor -42%/-22%; 1MeV
+-72%/-35%; combo=floor) — lost events are the thermal-capture-gamma calo
+class, so composition bias, not thinning. Conclusion: no free speedup;
+1 keV kineticEnergy floor (pdgId 2112 intersection) is the best-ratio option
+IF physics-blessed. Addendum: e+- 1 MeV floor tested (20k) — CPU -11% but
+kept -53% and CPU/kept WORSE than baseline (3.24 vs 1.69 s): it kills the
+sub-MeV terminal cascade of every calo shower (energy-scale corruption, not
+class removal). Never cut charged EM. Memory:
+reference_mustoppileup_g4_cpu_anatomy.
+
+## [2026-07-10] incident | Production#557 CI red — CRV_C3 enum vs frozen MDC2020 geometry
+All 8 CI physics tests (incl. POT) die at geometry load with "SurfaceIdEnum
+invalid enum name: CRV_C3". Root cause: new Offline KinKalGeomMaker (in
+GeometryService since the July trk2crv-material work) maps every CRV shield
+name to SurfaceId for every job; MDC2020-branch validation fcls pin frozen
+geom_common_MDC2020 -> geom_2021_PhaseI_v03 -> crv_counters_v09 (sector C3),
+while the modern enum dropped C3 (v10 CRV + M1-M8 taggers). PR is innocent
+(diff = output renames + database v1_5). Verified by local repro from the
+exact museCIBuild tree: geom_common_current rc=0, geom_common_MDC2020 rc=1.
+Fix: tolerant makeCRV upstream (or legacy enum entry). Memory:
+reference_mdc2020_ci_crv_c3_breakage.
+
+## [2026-07-11] research | POMS internals pass #2 (recovery machinery + Mu2e wiring)
+Source-level (fermitools/poms develop) + local recon. Closed 3 of 4 open
+questions from the 2026-04-28 pass (campaign_stages.dataset column;
+no map->def auto-derivation; update_campaign_stage payload). NEW substance:
+recovery types are JobType-attached ordered chains; ONLY pending_files
+verifies output existence (isparentof dims, output_ancestor_depth); the
+consumption-based types (process_status/consumed_status/
+delivered_not_consumed) re-dispatch finished work — Mu2e MDC2020 inis
+configure process_status x2 (mem bumps) = the Run1Ban L1 exposure at config
+level; POMS-native guard = switch chain to pending_files. Also: 'draining'
+split type is a NO-OP (exclusion lives in the SAM def text); completion
+'located' counts outputs (availability physical, create_date>submission) +
+2-day force-locate fallback. Mu2e wiring: poms_includes shims ->
+Production/CampaignConfig/mdc2025_*.cfg; one static stage_main_runjobdef
+serves every MDC2025-NNN.json via %(map)s; MDC2025 recovery config lives
+ONLY in the POMS DB (web-UI check = new open question #5). Page:
+[[poms-reference]] updated; stale prodtools/poms/ pointer corrected.

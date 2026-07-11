@@ -27,7 +27,6 @@ if [[ $# -eq 0 ]]; then
     echo "  --no-cleanup           Keep temporary files"
     echo "  --jobdefs <filename>   Custom filename for jobdefs list"
     echo "  --pushout              Enable SAM pushOutput"
-    echo "  --json-output          Output structured JSON"
     echo ""
     echo "Example:"
     echo "  json2jobdef --json config.json --index 0"
@@ -40,7 +39,7 @@ fi
 
 # Check if SimJob is set up
 if [[ -z "$MUSE_DIR" ]] || ! command -v mu2e >/dev/null 2>&1; then
-    echo "Error: Mu2e SimJob environment not set up. Run: muse setup SimJob"
+    echo "Error: Mu2e environment not set up. Run: muse setup ops, then muse setup SimJob <tag> (or source a Musing setup.sh)"
     exit 1
 fi
 

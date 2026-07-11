@@ -135,11 +135,25 @@ def _run_submit(cmd, tarball_name, njobs):
         }
 
     cluster_id = _parse_cluster_id(result.stdout)
-    if cluster_id:
-        print(f"Submitted cluster: {cluster_id}")
-    else:
-        print(f"WARNING: could not parse cluster ID from {cmd[0]} output")
+    if not cluster_id:
+        # jobsub_lite can exit 0 even when its internal condor_submit failed
+        # (seen 2026-07-10: condor_vault_storer permission failure under ksu
+        # printed "Error: condor_submit exited with failed status code 1" yet
+        # jobsub returned 0). A run with no parseable cluster ID is
+        # unconfirmed — report it failed rather than claim success. Verify
+        # with jobsub_q before resubmitting: a retry after a genuinely
+        # partial submit would double-run indices (duplicate seeds).
+        print(f"ERROR: {cmd[0]} exited 0 but no cluster ID found in its "
+              f"output — treating as failed. Verify with jobsub_q before "
+              f"resubmitting.")
+        return {
+            'tarball': tarball_name,
+            'cluster_id': None,
+            'njobs': njobs,
+            'status': 'failed',
+        }
 
+    print(f"Submitted cluster: {cluster_id}")
     return {
         'tarball': tarball_name,
         'cluster_id': cluster_id,
@@ -266,7 +280,10 @@ def submit_entry_direct(entry, idx, opts):
     # output_filenames feeds the per-(area, tier, owner) token scope derivation
     # so pushOutput can MAKE_PARENT in `/pnfs/mu2e/<area>/datasets/...`.
     if opts.dry_run and not tarball_path.is_file():
-        njobs_total = njobs_of(entry, default=1)
+        # Capacity stand-in when the cnf isn't inspectable: the window end
+        # (== njobs for plain entries), so validate_window never spuriously
+        # fails a dry run.
+        njobs_total = firstjob_of(entry) + njobs_of(entry, default=1)
         input_datasets = []
         output_filenames = []
     else:

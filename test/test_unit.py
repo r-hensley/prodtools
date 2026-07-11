@@ -3662,6 +3662,31 @@ class TestMu2ejobsubArgvFirstjob(unittest.TestCase):
         self.assertNotIn('--all', argv)
 
 
+class TestRunSubmitClusterVerification(unittest.TestCase):
+    """_run_submit must not report 'submitted' without a parsed cluster ID —
+    jobsub_lite can exit 0 while its internal condor_submit failed (the
+    2026-07-10 condor_vault_storer incident)."""
+
+    def _run(self, returncode, stdout):
+        from utils import submit
+        fake = MagicMock(returncode=returncode, stdout=stdout, stderr='')
+        with patch.object(submit.subprocess, 'run', return_value=fake):
+            return submit._run_submit(['jobsub_submit', '-N', '5'], 'cnf.tar', 5)
+
+    def test_exit0_with_cluster_is_submitted(self):
+        r = self._run(0, "5000 job(s) submitted to cluster 28708717.\n")
+        self.assertEqual((r['status'], r['cluster_id']), ('submitted', '28708717'))
+
+    def test_exit0_without_cluster_is_failed(self):
+        r = self._run(0, "Submitting job(s)\nError: condor_submit exited "
+                         "with failed status code 1\n")
+        self.assertEqual((r['status'], r['cluster_id']), ('failed', None))
+
+    def test_nonzero_exit_is_failed(self):
+        r = self._run(1, "")
+        self.assertEqual(r['status'], 'failed')
+
+
 class TestJobdefsDedupePerWindow(unittest.TestCase):
     """_write_jobdef_json_entry dedupes on (tarball, firstjob): the same
     tarball may appear once per index window, but never twice per window."""

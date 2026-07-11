@@ -3,10 +3,10 @@
 # SAM Dataset Parentage Chain Tracker
 #
 # Usage:
-#   samchain <file_name>
+#   famtree <file_name>
 #
 # Examples:
-#   samchain sim.mu2e.TargetStops.MDC2025ac.001430_00004022.art
+#   famtree sim.mu2e.TargetStops.MDC2025ac.001430_00004022.art
 #
 
 # Get the directory of this script

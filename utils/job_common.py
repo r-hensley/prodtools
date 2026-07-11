@@ -139,13 +139,6 @@ class Mu2eName:
         """dsconf with the build-version suffix stripped: 'MDC2025af_best_v1_3' → 'MDC2025af'."""
         return self.dsconf.split('_', 1)[0]
 
-    @property
-    def dsconf_version(self) -> Optional[str]:
-        """Build-version suffix after the first '_', or None."""
-        if '_' not in self.dsconf:
-            return None
-        return self.dsconf.split('_', 1)[1]
-
     # tier semantics ---------------------------------------------------------
 
     @property

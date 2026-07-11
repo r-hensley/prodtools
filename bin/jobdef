@@ -11,7 +11,7 @@ if [[ $# -eq 0 ]] || [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
     echo "  --run-number <n>       Run number"
     echo "  --events-per-job <n>   Events per job"
     echo "  --embed <fcl>          Embed FCL file"
-    echo "  --quiet                Suppress verbose output"
+    echo "  --verbose              Enable verbose output"
     echo ""
     echo "Example:"
     echo "  jobdef --setup /cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/MDC2020av/setup.sh \\"

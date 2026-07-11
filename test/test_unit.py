@@ -237,17 +237,15 @@ class TestMu2eName(unittest.TestCase):
 
     # sub-fields
 
-    def test_dsconf_base_and_version(self):
+    def test_dsconf_base_with_version_suffix(self):
         from utils.job_common import Mu2eName
         n = Mu2eName.parse("mcs.mu2e.CeEndpoint.MDC2025af_best_v1_3.001440_00001234.art")
         self.assertEqual(n.dsconf_base, "MDC2025af")
-        self.assertEqual(n.dsconf_version, "best_v1_3")
 
-    def test_dsconf_version_none_when_plain(self):
+    def test_dsconf_base_plain(self):
         from utils.job_common import Mu2eName
         n = Mu2eName.parse("dts.mu2e.CeEndpoint.Run1Bab.001440_00001234.art")
         self.assertEqual(n.dsconf_base, "Run1Bab")
-        self.assertIsNone(n.dsconf_version)
 
     def test_campaign_extracts_mdc(self):
         from utils.job_common import Mu2eName

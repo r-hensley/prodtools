@@ -8,11 +8,11 @@ track analysis. It spans the `Run1Ban`, `Run1Bap`, `Run1Baq`, `Run1Bav`, and
 the important production filters and timing windows, how the reconstruction and
 ntuple products were made, and the main use and normalization caveats.
 
-**Full-catalog provenance check: 24 September 2026 at 23:46:57 UTC.** The four
-new NTS definitions were refreshed separately at **25 September 2026 00:39 UTC**
-because production was still changing. File/event counts are point-in-time live
-SAM/MetaCat counts; they do not by themselves establish dCache locality or
-physical exposure.
+**Full-catalog provenance check: 24 September 2026 at 23:46:57 UTC.** The newer
+NTS catalog was refreshed from `listNewDatasets` at **29 September 2026 23:22
+UTC**, after its production reached the current MCS file counts. File/event
+counts are point-in-time catalog counts; they do not by themselves establish
+dCache locality or physical exposure.
 
 ## Quick interpretation
 
@@ -24,7 +24,7 @@ physical exposure.
 - `NoPrimaryMix1BB` has no physics primary; its physics content is the mixed beam-background libraries.  `-001` is high-calo enriched from a 5-billion-event source, `-002` is the unfiltered 100-million-event normal-window control, and `-003` is the corresponding early-time variant.
 - The Run1Baw `mcs...-KL` definitions are no-field KinematicLine reconstruction outputs.  `-KL` does not mean the events passed a line-fit filter: the final reconstruction path omits `KLFilter` and retains every successfully processed input event.
 - The Run1Baw `nts...-KL` definitions are standardized EventNtuple ROOT files made one-for-one from MCS files.  They are analysis conveniences, not a second reconstruction and not replacements for every custom analysis branch.
-- The newer `Run1B-010`, `Run1B-011`, and `Run1B-012` definitions re-ntuple existing Run1Baw MCS files with EventNtuple 6.14.3. They add no independent exposure, but they do have materially different `trk`, `timeclusters`, line-seed, and MC/calorimeter branch content from the EventNtuple 6.13.2 files in the first NTS table.
+- The newer `Run1B-010`, `Run1B-011`, and `Run1B-012` definitions re-ntuple all fifteen current Run1Baw MCS families with EventNtuple 6.14.3. They add no independent exposure, but they do have materially different `trk`, `timeclusters`, line-seed, and MC/calorimeter branch content from the EventNtuple 6.13.2 files in the first NTS table.
 
 ## Name components
 
@@ -153,6 +153,29 @@ CNF input lists still align with the parent definitions above.  This is a catalo
 provenance-link gap, not missing physics files.  No Run1Baw MCS, reconstruction
 log, or reconstruction CNF exists for NoPrimary `-003` at this check.
 
+#### Why NoPrimary `-002` has only 1,998 MCS files
+
+The two absent outputs are not a reconstruction selection or failed
+KinematicLine fits. They correspond to DIGI sequencers `001470_00000445` and
+`001470_00001443`. Registered reconstruction attempts open and process those
+inputs but terminate during ROOT input finalization with `FileReadError` from
+`TBasket::Streamer` and an invalid negative `fKeylen` (`-23569` and `-27091`,
+respectively). Repeated attempts fail on the same two inputs, which points to
+persistent ROOT basket/key corruption in those DIGI files rather than a
+transient worker failure.
+
+The latest registered failure logs are named:
+
+```text
+log.mu2e.NoPrimaryMix1BB-reco.Run1Baw_best_v1_5-002.1473-1787896828.log
+log.mu2e.NoPrimaryMix1BB-reco.Run1Baw_best_v1_5-002.1330-1787897216.log
+```
+
+Consequently, all readable inputs produced MCS output: 1,998 files and
+99,900,000 events. Both NTS generations cover those 1,998 available MCS files;
+neither can recover the missing 100,000 source events without repaired or
+reproduced DIGI inputs.
+
 ### NTS configuration and live catalog
 
 There are **two different EventNtuple generations** in the tables below. The
@@ -164,7 +187,7 @@ Run1B wrapper.
 | NTS set | Analysis setup | EventNtuple | MCS inputs | Relationship |
 | --- | --- | --- | --- | --- |
 | `Run1Baw_best_v1_5` | `AnalysisMDC2025/v02_01_00`, backing `SimJob/MDC2025av` | `v06_13_02` | Fifteen Run1Baw MCS families | First NTS production; complete relative to the current MCS definitions. |
-| `Run1B-010`, `Run1B-011`, `Run1B-012` | `AnalysisMDC2025/v02_02_01`, backing `SimJob/MDC2025ax` | `v06_14_03` | The same Run1Baw MCS definitions for four selected families | Re-ntupling pass; overlapping events, newer schema, and partial coverage at the recorded snapshot. |
+| `Run1B-010`, `Run1B-011`, `Run1B-012` | `AnalysisMDC2025/v02_02_01`, backing `SimJob/MDC2025ax` | `v06_14_03` | All fifteen current Run1Baw MCS families | Complete re-ntupling pass relative to the current MCS definitions; overlapping events and newer schema. |
 
 The wrapper has the same path, `EventNtuple/fcl/from_mcs-Run1B.fcl`, in both
 releases, but not the same contents. The
@@ -223,25 +246,35 @@ exists at this snapshot.
 
 #### `v06_14_03` NTS re-ntupling definitions
 
-These definitions were absent from the previous successful monitor snapshot and
-were registered on 24 September 2026. This table was refreshed at 25 September
-2026 00:39 UTC while production was still changing. “Represented events” are
-summed from the same-sequencer MCS parents; SAM reports the NTS `Event count` as
-`None`, not zero.
+These definitions began appearing on 24 September 2026. The initial four-row
+snapshot was still being produced; the 29 September `listNewDatasets` result
+contains all fifteen expected families at their current MCS file counts.
+“Represented events” are the event totals of the corresponding current MCS
+definitions; SAM reports the NTS `Event count` as `None`, not zero.
 
 | NTS definition | Direct MCS parent | NTS / current MCS files | Represented / current MCS events | Status at snapshot |
 | --- | --- | --- | --- | --- |
 | `nts.mu2e.CeEndpoint-KL.Run1B-010.root` | `mcs.mu2e.CeEndpoint-KL.Run1Baw_best_v1_5.art` | 19 / 19 | 1,184,477 / 1,184,477 | Complete |
-| `nts.mu2e.CeEndpointMix1BB-KL.Run1B-010.root` | `mcs.mu2e.CeEndpointMix1BB-KL.Run1Baw_best_v1_5.art` | **1,981 / 1,999** | **1,314,920 / 1,326,786** | Partial: 99.100% of files and 99.106% of events |
-| `nts.mu2e.NoPrimaryMix1BB-KL.Run1B-011.root` | `mcs.mu2e.NoPrimaryMix1BB-KL.Run1Baw_best_v1_5-001.art` | **2,000 / 20,000** | **34,469,411 / 344,196,254** | Partial: 10.000% of files and 10.014% of events |
-| `nts.mu2e.NoPrimaryMix1BB-KL.Run1B-012.root` | `mcs.mu2e.NoPrimaryMix1BB-KL.Run1Baw_best_v1_5-002.art` | **1,000 / 1,998** | **50,000,000 / 99,900,000** | Partial relative to current MCS: 50.050% of files and events; upstream MCS remains 1,998/2,000 planned |
+| `nts.mu2e.CeEndpointMix1BB-KL.Run1B-010.root` | `mcs.mu2e.CeEndpointMix1BB-KL.Run1Baw_best_v1_5.art` | 1,999 / 1,999 | 1,326,786 / 1,326,786 | Complete |
+| `nts.mu2e.CosmicCRYAll-KL.Run1B-010.root` | `mcs.mu2e.CosmicCRYAll-KL.Run1Baw_best_v1_5.art` | 100 / 100 | 115,931,437 / 115,931,437 | Complete |
+| `nts.mu2e.CosmicCRYAllMix1BB-KL.Run1B-010.root` | `mcs.mu2e.CosmicCRYAllMix1BB-KL.Run1Baw_best_v1_5.art` | 995 / 995 | 2,351,533 / 2,351,533 | Complete |
+| `nts.mu2e.FlatGamma-KL.Run1B-010.root` | `mcs.mu2e.FlatGamma-KL.Run1Baw_best_v1_5.art` | 19 / 19 | 897,555 / 897,555 | Complete |
+| `nts.mu2e.FlatGammaMix1BB-KL.Run1B-010.root` | `mcs.mu2e.FlatGammaMix1BB-KL.Run1Baw_best_v1_5.art` | 1,999 / 1,999 | 1,039,674 / 1,039,674 | Complete |
+| `nts.mu2e.FlateMinus-KL.Run1B-010.root` | `mcs.mu2e.FlateMinus-KL.Run1Baw_best_v1_5.art` | 19 / 19 | 570,932 / 570,932 | Complete |
+| `nts.mu2e.FlateMinusMix1BB-KL.Run1B-010.root` | `mcs.mu2e.FlateMinusMix1BB-KL.Run1Baw_best_v1_5.art` | 1,998 / 1,998 | 704,053 / 704,053 | Complete |
+| `nts.mu2e.MuCapNeutronTailCaloMix1BB-KL.Run1B-010.root` | `mcs.mu2e.MuCapNeutronTailCaloMix1BB-KL.Run1Baw_best_v1_5.art` | 1,000 / 1,000 | 154,086 / 154,086 | Complete |
+| `nts.mu2e.MuCapProtonTailCaloMix1BB-KL.Run1B-010.root` | `mcs.mu2e.MuCapProtonTailCaloMix1BB-KL.Run1Baw_best_v1_5.art` | 200 / 200 | 158,688 / 158,688 | Complete |
+| `nts.mu2e.NoPrimaryMix1BB-KL.Run1B-011.root` | `mcs.mu2e.NoPrimaryMix1BB-KL.Run1Baw_best_v1_5-001.art` | 20,000 / 20,000 | 344,196,254 / 344,196,254 | Complete |
+| `nts.mu2e.NoPrimaryMix1BB-KL.Run1B-012.root` | `mcs.mu2e.NoPrimaryMix1BB-KL.Run1Baw_best_v1_5-002.art` | 1,998 / 1,998 | 99,900,000 / 99,900,000 | Complete relative to current MCS; upstream MCS remains 1,998/2,000 planned |
+| `nts.mu2e.PolyFlatGammaCaloMix1BB-KL.Run1B-010.root` | `mcs.mu2e.PolyFlatGammaCaloMix1BB-KL.Run1Baw_best_v1_5.art` | 200 / 200 | 5,249,814 / 5,249,814 | Complete |
+| `nts.mu2e.RPCExternalMix1BB-KL.Run1B-010.root` | `mcs.mu2e.RPCExternalMix1BB-KL.Run1Baw_best_v1_5.art` | 5,000 / 5,000 | 643,155 / 643,155 | Complete |
+| `nts.mu2e.RPCInternalMix1BB-KL.Run1B-010.root` | `mcs.mu2e.RPCInternalMix1BB-KL.Run1Baw_best_v1_5.art` | 5,000 / 5,000 | 230,559 / 230,559 | Complete |
 
-Every file in these four definitions has a direct same-family, same-sequencer MCS
-parent plus the applicable registered NTS CNF. These files overlap events already
-represented by the `v06_13_02` outputs; they are not additional independent
-exposure. Do not concatenate the two generations without event de-duplication,
-and do not mix their `trk` or `timeclusters` branches without explicit schema and
-collection harmonization.
+All fifteen definitions now cover their current same-family MCS definitions.
+These files overlap events already represented by the `v06_13_02` outputs; they
+are not additional independent exposure. Do not concatenate the two generations
+without event de-duplication, and do not mix their `trk` or `timeclusters`
+branches without explicit schema and collection harmonization.
 
 ## Source generation and filtering
 
@@ -335,8 +368,18 @@ reconstructed calorimeter cluster and not an analysis quantity such as
 
 ## How to reproduce the provenance check
 
-After the standard Mu2e setup on a GPVM, compare the SAM definition summary with
-active and active-plus-retired MetaCat counts:
+`listNewDatasets` is supplied by prodtools, not by `muse setup ops` alone. On a
+GPVM, set up both environments to reproduce the current Run1B NTS listing:
+
+```bash
+mu2einit
+muse setup ops
+source /cvmfs/mu2e.opensciencegrid.org/bin/prodtools/v1.5.6/bin/setup.sh
+listNewDatasets --filetype root | grep Run1B
+```
+
+For a specific definition, compare the SAM summary with active and
+active-plus-retired MetaCat counts:
 
 ```bash
 samweb list-definition-files --summary dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art

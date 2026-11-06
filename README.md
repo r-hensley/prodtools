@@ -62,6 +62,8 @@ the newest MDC2025 release, fifteen minutes, nothing to edit.
 | `mcp/` | the read-only and write MCP servers |
 | `EXAMPLES.md` | CLI reference, regenerated from the code |
 | `CONTEXT.md` | glossary: tier, hop, stage, campaign, entry |
+| [Current Run1B datasets](docs/run1b_datasets_current.md) | DIGI/MCS provenance and the current NTS generation |
+| [Historical Run1B datasets](docs/run1b_datasets_historical.md) | older NTS definitions, software versions, and successors |
 | `docs/adr/` | decisions and why they were made |
 | `wiki/` | operational knowledge: campaigns, incidents, runbooks |
 | `test/` | unit suite: `cd test && python3 -m unittest test_unit` (two MCP cases skip without `mcp/.venv`) |

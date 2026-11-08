@@ -1,247 +1,135 @@
-# Run1B datasets — current catalog and provenance
+# Run1B datasets — current catalog
 
-This page catalogs the current Run1B v40, detector-solenoid-off DIGI Monte
-Carlo datasets, their Run1Baw MCS reconstruction, and the `Run1B-013/-014/-015`
-EventNtuple generation. It records source construction, mixing, production
-filters, timing windows, and analysis and normalization caveats.
+Run1B v40, detector-solenoid-off DIGI, KinematicLine MCS reconstruction, and
+`Run1B-013/-014/-015` ntuples. Older ntuple generations and release differences
+are in the [historical catalog](run1b_datasets_historical.md).
 
-The [historical dataset catalog](run1b_datasets_historical.md) preserves older
-NTS definitions and software/branch differences for reproducing earlier work.
-The DIGI and MCS datasets below remain inputs to the current ntuples.
+**Catalog counts checked 8 November 2026, 21:25 UTC.** Configuration provenance
+was audited in September, with current NTS and MuCap1809 configurations checked
+6–8 November. File counts are active catalog members. dCache locality
+and ROOT/ART payload contents require separate checks.
 
-**Original full provenance audit: 24 September 2026 at 23:46:57 UTC.**
-**Current MCS counts and NTS catalog/configuration/parent coverage rechecked:
-2026-11-06 04:56:36 UTC.** Earlier DIGI/source-generation details retain their original
-audit scope. File and event counts are point-in-time catalog observations;
-they establish neither physical exposure nor dCache locality.
+<a id="quick-interpretation"></a>
+<a id="name-components"></a>
 
-## Quick interpretation
-
-- `CeEndpointMix1BB` is the conversion-electron-like signal sample with Run1 one-booster-batch beam-background overlay.  The plain `CeEndpoint` definition uses the same primary DTS library and is its useful overlay ablation.
-- `FlateMinus` and `FlatGamma` are flat-kinematics detector-response samples, not physical DIO or RMC spectra.  Their mixed/plain pairs reuse the same primary DTS libraries.
-- `CosmicCRYAll` is the inclusive, multi-particle CRY cosmic sample.  The listed plain and mixed definitions are **not** a clean overlay-only pair: their stage-2 source geometries differ (v03 versus v40).
-- `MuCapNeutronTailCalo`, `MuCapProtonTailCalo`, and `PolyFlatGammaCalo` are deliberately high-energy, calorimeter-directed stress samples.  They are not rate samples.
-- `RPCExternal` and `RPCInternal` are radiative-pion-capture photon and internal-conversion-pair samples.  They require the stored RPC survival/event weight and use an early 300 ns digitization start.
-- `NoPrimaryMix1BB` has no physics primary; its physics content is the mixed beam-background libraries.  `-001` is high-calo enriched from a 5-billion-event source, `-002` is the unfiltered 100-million-event normal-window control, and `-003` is the corresponding early-time variant.
-- The Run1Baw `mcs...-KL` definitions are no-field KinematicLine reconstruction outputs.  `-KL` does not mean the events passed a line-fit filter: the final reconstruction path omits `KLFilter` and retains every successfully processed input event.
-- The Run1Baw `nts...-KL` definitions are standardized EventNtuple ROOT files made one-for-one from MCS files.  They are analysis conveniences, not a second reconstruction and not replacements for every custom analysis branch.
-- The current `Run1B-013/-014/-015` definitions re-ntuple all fifteen Run1Baw MCS families with EventNtuple `v06_16_00`. They include event-weight and calorimeter-truth/linking fixes, and add no independent exposure. Older NTS generations are listed in the [historical catalog](run1b_datasets_historical.md).
-
-## Name components
-
-- **`dig`** — Detector digitization output.  These files are inputs to reconstruction; they are not reconstructed `mcs` files.
-
-- **`mcs`** — Reconstructed Monte Carlo ART output.  The Run1Baw definitions below contain the no-field KinematicLine reconstruction products.
-
-- **`-KL`** — KinematicLine/KKLine reconstruction family and output naming.  It is not an event-selection claim.
-
-- **`nts`** — EventNtuple ROOT output made from MCS.  SAM does not register event-count metadata for these ROOT definitions; parent-MCS coverage is used below.
-
-- **`Mix1BB`** — The primary event is mixed with the Run1 single-booster-batch beam-background model.  The overlay contains `MuBeamFlash`, `EleBeamFlash`, `NeutralsFlash`, and `MuStopPileup` components.  It does not mean exactly one background particle or one library event.
-
-- **no `Mix1BB`** — Primary-only digitization, with no beam-background overlay.
-
-- **`Run1Ban`, `Run1Bap`, `Run1Baq`, `Run1Bav`, `Run1Baw`** — Production/configuration tags used for these Run1B datasets, not independent top-level campaigns and not generator names.  The Run1Bav DIGIs were made with the consolidated `MDC2025av` SimJob release; Run1Baw labels the downstream reconstruction/ntuple production.
-
-- **`Run1B-013`, `Run1B-014`, `Run1B-015`** — Current NTS output-configuration tags. Their direct parents are existing `Run1Baw_best_v1_5` MCS definitions; they do not identify another reconstruction pass. Earlier `Run1B-010/-011/-012` output tags are documented in the historical catalog.
-
-- **`best_v1_4` / `best_v1_5`** — `Sim_best` conditions purpose and version.
+`dig` contains digitization, `mcs` contains reconstructed MC, and `nts` contains
+EventNtuple ROOT output. `-KL` identifies KinematicLine reconstruction.
+`Mix1BB` adds Run1 single-booster-batch beam background from muon, electron,
+neutral-flash and stopped-muon pileup libraries. Plain samples omit that overlay.
+Production tags identify configurations, and `best_v1_4/v1_5` identifies the
+`Sim_best` conditions version.
 
 ## Common production conditions
 
-All sixteen generated DIGI FCLs explicitly select
-`Offline/Mu2eG4/geom/geom_run1_b_v40.txt` and the DS-off field file
-`Offline/Mu2eG4/geom/bfgeom_DSOff.txt`.  This describes the DIGI job;
-the plain cosmic dataset has an older v03 upstream DTS geometry, documented below.
+DIGI configurations select `geom_run1_b_v40.txt` and `bfgeom_DSOff.txt`.
+The plain cosmic sample has v03 detector steps upstream of digitization.
 
-| Campaign | DIGI Offline backing | Conditions | Tracker/calo digitization window | Important distinctions |
+| DIGI production | Offline backing | Conditions | Tracker/calo window | Configuration detail |
 | --- | --- | --- | --- | --- |
-| `Run1Ban` | `v13_17_10` | `Sim_best/v1_4` | 450–1650 ns | Standard four-component 1BB overlay; no later explicit neutral-flash factor of 0.01. |
-| `Run1Bap` | `v13_32_10` | `Sim_best/v1_5` | **300–1650 ns** | Early-time RPC production. The neutral-flash parent is Run1Baq; other overlay parents are Run1Ban. |
-| `Run1Baq` | `v13_34_10` | `Sim_best/v1_5` | 450–1650 ns | Explicit `NeutralsFlashMixer.meanEventsPerPOTFactors: [0.01]`. |
-| `Run1Bav -001` | `v13_35_00` | `Sim_best/v1_5` | 450–1650 ns | Run1Baq NoPrimary source; active high-calo filter. |
-| `Run1Bav -002` | `v13_35_00` | `Sim_best/v1_5` | 450–1650 ns | Older Run1Ban NoPrimary source; null high-calo filter. |
-| `Run1Bav -003` | `v13_35_00` | `Sim_best/v1_5` | **300–1650 ns** | Same source/filter design as -002, with explicit 300 ns tracker and calorimeter start overrides. |
+| `Run1Ban` | `v13_17_10` | `Sim_best/v1_4` | 450–1650 ns | Four-component 1BB overlay. |
+| `Run1Bap` | `v13_32_10` | `Sim_best/v1_5` | 300–1650 ns | RPC. Neutral-flash library from Run1Baq, other overlay libraries from Run1Ban. |
+| `Run1Baq` | `v13_34_10` | `Sim_best/v1_5` | 450–1650 ns | Neutral-flash `meanEventsPerPOTFactors: [0.01]`. |
+| `Run1Bav -001/-002` | `v13_35_00` | `Sim_best/v1_5` | 450–1650 ns | Filtered/inclusive NoPrimary controls. |
+| `Run1Bav -003` | `v13_35_00` | `Sim_best/v1_5` | 300–1650 ns | Explicit tracker and calo start overrides. |
+| `Run1Baw` MuCap1809 | `v13_36_00` | `Sim_best/v1_5` | 450–1650 ns | Mixed sample: neutral-flash `simStageEfficiencyTags: []`, `meanEventsPerProton: 1e-07`. |
 
-The generated mixed-job FCLs set `PBISim.extendedMean: 5.92e6` and
-`PBISim.cutMax: 35.5e6`.  These generated overrides are the effective
-values for these productions.
+Mixed-job overrides set `PBISim.extendedMean=5.92e6` and `cutMax=35.5e6`.
 
 ## DIGI dataset catalog
 
-| Dataset definition | Files | Saved events | Sample meaning and recommended use |
+| Dataset definition | Files | Saved events | Sample |
 | --- | --- | --- | --- |
-| `dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art` | 1,999 | 1,326,786 | Approximately 105 MeV/c conversion-electron-like primaries from stopped Al muons, plus 1BB. Signal-like/stress sample. |
-| `dig.mu2e.CeEndpoint.Run1Ban_best_v1_4-000.art` | 19 | 1,184,477 | Same `dts.mu2e.CeEndpoint.Run1Ban-001.art` primary library, without beam overlay. Overlay ablation for the mixed CE sample. |
-| `dig.mu2e.CosmicCRYAllMix1BB.Run1Ban_best_v1_4-000.art` | 995 | 2,351,533 | Inclusive multi-particle CRY showers resampled through Run1Ban v40 stage 2, plus 1BB. Cosmic stress/background sample. The Run1Ban DTS `CosmicLivetime` is stored as zero because of an integer-truncation bug; use the documented true 22.9 s per contributing DTS file. |
-| `dig.mu2e.CosmicCRYAll.Run1Ban_best_v1_4-000.art` | 100 | 115,931,437 | Inclusive CRY without beam overlay, but sourced from the much larger Run1Bah **v03** stage-2 DTS production. Not a geometry-controlled mixed/plain partner. Run1Bah stored livetime is 22.4% low; use 114.5 s per contributing DTS file or multiply the stored value by 1.289. |
-| `dig.mu2e.FlateMinusMix1BB.Run1Ban_best_v1_4-000.art` | 1,998 | 704,053 | Flat 50–110 MeV/c electrons at stopped-Al-muon positions/times, plus 1BB. Electron-response/training stress sample; not physical DIO. |
-| `dig.mu2e.FlateMinus.Run1Ban_best_v1_4-000.art` | 19 | 570,932 | Same flat-electron DTS library, without beam overlay. Overlay ablation for the mixed flat-electron sample. |
-| `dig.mu2e.FlatGammaMix1BB.Run1Ban_best_v1_4-000.art` | 1,999 | 1,039,674 | Flat 50–110 MeV/c photons at stopped-Al-muon positions/times, plus 1BB. Photon-response stress sample; not physical RMC. |
-| `dig.mu2e.FlatGamma.Run1Ban_best_v1_4-000.art` | 19 | 897,555 | Same flat-photon DTS library, without beam overlay. Overlay ablation for the mixed flat-photon sample. |
-| `dig.mu2e.MuCapNeutronTailCaloMix1BB.Run1Baq_best_v1_5.art` | 1,000 | 154,086 | Muon-capture neutrons above 60 MeV kinetic energy from `SchroederNeutronSpectrum.txt`, aimed nearly along +z toward the calorimeter, plus 1BB. High-energy neutron/calorimeter response stress sample, not a rate sample. |
-| `dig.mu2e.MuCapProtonTailCaloMix1BB.Run1Baq_best_v1_5.art` | 200 | 158,688 | Muon-capture protons above 60 MeV kinetic energy from the `ejectedProtons` spectrum, aimed nearly along +z, plus 1BB. High-energy proton/calorimeter response stress sample, not a rate sample. |
-| `dig.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-001.art` | 20,000 | 344,196,254 | No physics primary; beam-background overlay only. Produced from 5.0 billion Run1Baq empty source events and filtered on a CaloShowerStep cluster above 50 MeV. High-calo-enriched tail; normalize from the processed source exposure, not saved count. |
-| `dig.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-002.art` | 2,000 | 100,000,000 | No physics primary; beam-background overlay only. Uses 100 million older Run1Ban empty source events, a null calo filter, and the normal window. Inclusive/control sample for filter-efficiency and sculpting checks. |
-| `dig.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-003.art` | 2,000 | 100,000,000 | Same source and null-filter design as -002, but with 300–1650 ns tracker/calo digitization. Early-time RPC occupancy/timing variant; independent random mixing/digitization means it need not be event-bitwise-identical to -002. |
-| `dig.mu2e.PolyFlatGammaCaloMix1BB.Run1Baq_best_v1_5.art` | 200 | 5,249,814 | Flat 50–110 MeV/c photons at muon stops in COL5 polyethylene/carbon, aimed nearly along +z, plus 1BB. Poly-stop photon/calorimeter response sample; not a physical photon spectrum or rate. |
-| `dig.mu2e.RPCExternalMix1BB.Run1Bap_best_v1_5-000.art` | 5,000 | 643,155 | External radiative pion capture: a Bistirlich-spectrum 50–139.5 MeV photon at a stopped-pion position, plus 1BB. Early-time RPC photon sample; apply the RPC survival/event weight. |
-| `dig.mu2e.RPCInternalMix1BB.Run1Bap_best_v1_5-000.art` | 5,000 | 230,559 | Internal radiative pion capture: the sampled virtual photon converts to an electron-positron pair using the Kroll–Wada model, plus 1BB. Early-time RPC pair sample; apply the RPC survival/event weight. |
+| `dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art` | 1,999 | 1,326,786 | Endpoint electrons from stopped Al muons + 1BB. |
+| `dig.mu2e.CeEndpoint.Run1Ban_best_v1_4-000.art` | 19 | 1,184,477 | Same CE source, primary-only. |
+| `dig.mu2e.CosmicCRYAllMix1BB.Run1Ban_best_v1_4-000.art` | 995 | 2,351,533 | CRY showers from the v40 stage-2 source + 1BB. |
+| `dig.mu2e.CosmicCRYAll.Run1Ban_best_v1_4-000.art` | 100 | 115,931,437 | Primary-only CRY showers from the older v03 stage-2 source. |
+| `dig.mu2e.FlateMinusMix1BB.Run1Ban_best_v1_4-000.art` | 1,998 | 704,053 | Flat 50–110 MeV/c electrons + 1BB. |
+| `dig.mu2e.FlateMinus.Run1Ban_best_v1_4-000.art` | 19 | 570,932 | Same flat-electron source, primary-only. |
+| `dig.mu2e.FlatGammaMix1BB.Run1Ban_best_v1_4-000.art` | 1,999 | 1,039,674 | Flat 50–110 MeV/c photons + 1BB. |
+| `dig.mu2e.FlatGamma.Run1Ban_best_v1_4-000.art` | 19 | 897,555 | Same flat-photon source, primary-only. |
+| `dig.mu2e.MuCap1809keVCaloMix1BB.Run1Baw_best_v1_5.art` | 1,000 | 2,259,321 | Calorimeter-directed 1.809 MeV capture photons + 1BB. |
+| `dig.mu2e.MuCap1809keVCalo.Run1Baw_best_v1_5.art` | 10 | 2,259,321 | Same capture-photon source, primary-only. |
+| `dig.mu2e.MuCapNeutronTailCaloMix1BB.Run1Baq_best_v1_5.art` | 1,000 | 154,086 | Capture neutrons above 60 MeV, directed toward the calorimeter + 1BB. |
+| `dig.mu2e.MuCapProtonTailCaloMix1BB.Run1Baq_best_v1_5.art` | 200 | 158,688 | Capture protons above 60 MeV, directed toward the calorimeter + 1BB. |
+| `dig.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-001.art` | 20,000 | 344,196,254 | Beam overlay with a >50 MeV truth-step calo-cluster filter. Source has 5 billion empty events. |
+| `dig.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-002.art` | 2,000 | 100,000,000 | Inclusive beam overlay, 100 million empty source events, 450 ns start. |
+| `dig.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-003.art` | 2,000 | 100,000,000 | Inclusive beam overlay, same source as -002, 300 ns start. |
+| `dig.mu2e.PolyFlatGammaCaloMix1BB.Run1Baq_best_v1_5.art` | 200 | 5,249,814 | Flat 50–110 MeV/c photons from COL5 poly/C muon stops, directed toward the calorimeter + 1BB. |
+| `dig.mu2e.RPCExternalMix1BB.Run1Bap_best_v1_5-000.art` | 5,000 | 643,155 | Bistirlich-spectrum 50–139.5 MeV capture photons + 1BB. Apply the RPC survival weight. |
+| `dig.mu2e.RPCInternalMix1BB.Run1Bap_best_v1_5-000.art` | 5,000 | 230,559 | Kroll–Wada internal-conversion electron–positron pairs + 1BB. Apply the RPC survival weight. |
 
 ## Reconstructed products
 
-The Run1Baw production reconstructs the DIGIs above into `mcs...-KL`
-ART files and then converts available MCS files into `nts...-KL`
-EventNtuple ROOT files.  The exact parent definitions are listed below; the
-Run1Baw tag is an output-production label and does not replace the parent DIGI
-provenance.
-
 ### MCS configuration and geometry
 
-All fifteen registered generated reconstruction FCL payloads are byte-identical.
-They include `Production/JobConfig/recoMC/NoFieldRun1B.fcl`, select
-`Sim_best/v1_5`, name `geom_run1_b_v40.txt` and
-`bfgeom_DSOff.txt`, and write `KinematicLineOutput`.  Their
-`jobpars.json` setup environments nevertheless split into two groups:
+Registered MCS FCLs include `Production/JobConfig/recoMC/NoFieldRun1B.fcl`,
+select `Sim_best/v1_5`, v40 geometry and DS off, and write `KinematicLineOutput`.
+The final `RecoPath` omits `KLFilter`, so saved events can contain failed or
+absent KKLine fits.
 
-| MCS definitions | Registered reconstruction setup | Offline backing | Resolved geometry reported by the job |
-| --- | --- | --- | --- |
-| All except NoPrimary `-001/-002` | `SimJob/Run1Baq/setup.sh` | `v13_34_10` | `geom_run1_b_v40.txt`: 21,486 lines, framework hash `1848509147153137480` |
-| NoPrimary `-001/-002` | `SimJob/MDC2025aw/setup.sh` | `v13_36_00` | `geom_run1_b_v40.txt`: 21,840 lines, framework hash `2036620008520853265` |
+| MCS families | Registered setup | Offline backing |
+| --- | --- | --- |
+| CE, cosmic, flat electron/photon, capture tails, poly photon, RPC | `SimJob/Run1Baq` | `v13_34_10` |
+| NoPrimary `-001/-002`, MuCap1809 plain/mixed | `SimJob/MDC2025aw` | `v13_36_00` |
 
-The DS-off field has the same logged 67-line/hash signature in both groups, but
-the expanded geometry does not.  A common `v40` filename is therefore
-not proof of a byte-identical reconstruction geometry.  Comparisons involving
-the NoPrimary MCS and another Run1Baw family should retain this
-release/geometry-domain caveat.
-
-The base configuration defines `KLFilter`, but the final
-`NoFieldRun1B.fcl` explicitly rewrites `RecoPath` without that
-module.  `KinematicLineOutput.SelectEvents: ["RecoPath"]` therefore
-means successful path execution, not a successful KKLine fit.  Representative
-logs and aggregate counts show all successfully processed parent-DIGI events
-written to MCS.
+September job logs show different expanded geometry between these releases
+despite the shared v40 filename. Retain this qualification in cross-family
+comparisons.
 
 ### Live MCS catalog
 
-MCS file and event counts were rechecked with the current NTS audit. The
-September provenance audit found no retired MCS records in these definitions.
-Expected files are the exact DIGI inputs recorded in the registered
-reconstruction CNF.
+Expected outputs are the job count in the registered reconstruction CNF.
+MuCap1809 mixed merges 20 DIGI files per job, producing 50 outputs from all
+1,000 DIGI inputs.
 
-| MCS definition | Parent DIGI definition | Files / expected | Saved events | Status |
-| --- | --- | --- | --- | --- |
-| `mcs.mu2e.CeEndpoint-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.CeEndpoint.Run1Ban_best_v1_4-000.art` | 19 / 19 | 1,184,477 | Complete |
-| `mcs.mu2e.CeEndpointMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art` | 1,999 / 1,999 | 1,326,786 | Complete |
-| `mcs.mu2e.CosmicCRYAll-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.CosmicCRYAll.Run1Ban_best_v1_4-000.art` | 100 / 100 | 115,931,437 | Complete now; an earlier 98/100 catalog snapshot was transient |
-| `mcs.mu2e.CosmicCRYAllMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.CosmicCRYAllMix1BB.Run1Ban_best_v1_4-000.art` | 995 / 995 | 2,351,533 | Complete |
-| `mcs.mu2e.FlatGamma-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.FlatGamma.Run1Ban_best_v1_4-000.art` | 19 / 19 | 897,555 | Complete |
-| `mcs.mu2e.FlatGammaMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.FlatGammaMix1BB.Run1Ban_best_v1_4-000.art` | 1,999 / 1,999 | 1,039,674 | Complete |
-| `mcs.mu2e.FlateMinus-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.FlateMinus.Run1Ban_best_v1_4-000.art` | 19 / 19 | 570,932 | Complete |
-| `mcs.mu2e.FlateMinusMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.FlateMinusMix1BB.Run1Ban_best_v1_4-000.art` | 1,998 / 1,998 | 704,053 | Complete |
-| `mcs.mu2e.MuCapNeutronTailCaloMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.MuCapNeutronTailCaloMix1BB.Run1Baq_best_v1_5.art` | 1,000 / 1,000 | 154,086 | Complete |
-| `mcs.mu2e.MuCapProtonTailCaloMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.MuCapProtonTailCaloMix1BB.Run1Baq_best_v1_5.art` | 200 / 200 | 158,688 | Complete |
-| `mcs.mu2e.NoPrimaryMix1BB-KL.Run1Baw_best_v1_5-001.art` | `dig.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-001.art` | 20,000 / 20,000 | 344,196,254 | Complete |
-| `mcs.mu2e.NoPrimaryMix1BB-KL.Run1Baw_best_v1_5-002.art` | `dig.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-002.art` | **1,998 / 2,000** | **99,900,000** | Missing sequencers `001470_00000445` and `001470_00001443`; registered retries fail with ROOT-basket read/corruption errors |
-| `mcs.mu2e.PolyFlatGammaCaloMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.PolyFlatGammaCaloMix1BB.Run1Baq_best_v1_5.art` | 200 / 200 | 5,249,814 | Complete |
-| `mcs.mu2e.RPCExternalMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.RPCExternalMix1BB.Run1Bap_best_v1_5-000.art` | 5,000 / 5,000 | 643,155 | Complete |
-| `mcs.mu2e.RPCInternalMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.RPCInternalMix1BB.Run1Bap_best_v1_5-000.art` | 5,000 / 5,000 | 230,559 | Complete |
+| MCS definition | Parent DIGI definition | Files / expected outputs | Saved events |
+| --- | --- | --- | --- |
+| `mcs.mu2e.CeEndpoint-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.CeEndpoint.Run1Ban_best_v1_4-000.art` | 19 / 19 | 1,184,477 |
+| `mcs.mu2e.CeEndpointMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art` | 1,999 / 1,999 | 1,326,786 |
+| `mcs.mu2e.CosmicCRYAll-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.CosmicCRYAll.Run1Ban_best_v1_4-000.art` | 100 / 100 | 115,931,437 |
+| `mcs.mu2e.CosmicCRYAllMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.CosmicCRYAllMix1BB.Run1Ban_best_v1_4-000.art` | 995 / 995 | 2,351,533 |
+| `mcs.mu2e.FlatGamma-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.FlatGamma.Run1Ban_best_v1_4-000.art` | 19 / 19 | 897,555 |
+| `mcs.mu2e.FlatGammaMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.FlatGammaMix1BB.Run1Ban_best_v1_4-000.art` | 1,999 / 1,999 | 1,039,674 |
+| `mcs.mu2e.FlateMinus-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.FlateMinus.Run1Ban_best_v1_4-000.art` | 19 / 19 | 570,932 |
+| `mcs.mu2e.FlateMinusMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.FlateMinusMix1BB.Run1Ban_best_v1_4-000.art` | 1,998 / 1,998 | 704,053 |
+| `mcs.mu2e.MuCap1809keVCalo-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.MuCap1809keVCalo.Run1Baw_best_v1_5.art` | 10 / 10 | 2,259,321 |
+| `mcs.mu2e.MuCap1809keVCaloMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.MuCap1809keVCaloMix1BB.Run1Baw_best_v1_5.art` | 50 / 50 | 2,259,321 |
+| `mcs.mu2e.MuCapNeutronTailCaloMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.MuCapNeutronTailCaloMix1BB.Run1Baq_best_v1_5.art` | 1,000 / 1,000 | 154,086 |
+| `mcs.mu2e.MuCapProtonTailCaloMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.MuCapProtonTailCaloMix1BB.Run1Baq_best_v1_5.art` | 200 / 200 | 158,688 |
+| `mcs.mu2e.NoPrimaryMix1BB-KL.Run1Baw_best_v1_5-001.art` | `dig.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-001.art` | 20,000 / 20,000 | 344,196,254 |
+| `mcs.mu2e.NoPrimaryMix1BB-KL.Run1Baw_best_v1_5-002.art` | `dig.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-002.art` | 1,998 / 2,000 | 99,900,000 |
+| `mcs.mu2e.PolyFlatGammaCaloMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.PolyFlatGammaCaloMix1BB.Run1Baq_best_v1_5.art` | 200 / 200 | 5,249,814 |
+| `mcs.mu2e.RPCExternalMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.RPCExternalMix1BB.Run1Bap_best_v1_5-000.art` | 5,000 / 5,000 | 643,155 |
+| `mcs.mu2e.RPCInternalMix1BB-KL.Run1Baw_best_v1_5.art` | `dig.mu2e.RPCInternalMix1BB.Run1Bap_best_v1_5-000.art` | 5,000 / 5,000 | 230,559 |
 
-The September audit found incomplete dataset-wide MetaCat lineage for 270
-`FlateMinusMix1BB-KL` MCS records and NoPrimary `-001`
-sequencer `001470_00004188`: those records have no direct
-`parents:` entry.  Their output names/event totals and the immutable
-CNF input lists still align with the parent definitions above.  This is a catalog
-provenance-link gap, not missing physics files. No Run1Baw MCS definition for
-NoPrimary `-003` is registered at the November 6
-check; the September provenance audit also found no reconstruction log or CNF
-for that variant.
+<a id="why-noprimary--002-has-only-1998-mcs-files"></a>
 
-#### Why NoPrimary `-002` has only 1,998 MCS files
-
-The two absent outputs are not a reconstruction selection or failed
-KinematicLine fits. They correspond to DIGI sequencers `001470_00000445` and
-`001470_00001443`. Registered reconstruction attempts open and process those
-inputs but terminate during ROOT input finalization with `FileReadError` from
-`TBasket::Streamer` and an invalid negative `fKeylen` (`-23569` and `-27091`,
-respectively). Repeated attempts fail on the same two inputs, which points to
-persistent ROOT basket/key corruption in those DIGI files rather than a
-transient worker failure.
-
-The latest registered failure logs are named:
-
-```text
-log.mu2e.NoPrimaryMix1BB-reco.Run1Baw_best_v1_5-002.1473-1787896828.log
-log.mu2e.NoPrimaryMix1BB-reco.Run1Baw_best_v1_5-002.1330-1787897216.log
-```
-
-Consequently, all readable inputs produced MCS output: 1,998 files and
-99,900,000 events. The current NTS generation covers those 1,998 available MCS
-files, as do the two historical generations. Re-ntupling cannot recover the missing 100,000
-source events without repaired or reproduced DIGI inputs.
+NoPrimary `-002` lacks sequencers `001470_00000445` and `001470_00001443`
+after repeated ROOT input-read failures. NoPrimary `-003` has no observed
+Run1Baw MCS counterpart. The September audit also found missing direct parent
+links for 270 FlateMinusMix1BB MCS records and NoPrimary `-001` sequencer
+`001470_00004188`; the registered input lists provide their intended mapping.
+The new MuCap1809 mixed DIGI has five unresolved parent IDs, while its 1,000
+primary DTS links and downstream MCS links were resolved.
 
 ### NTS configuration and live catalog
 
-The current generation is `Run1B-013`, `Run1B-014`, and `Run1B-015`, made with
-EventNtuple `v06_16_00`. These are regenerated ntuples of the existing Run1Baw
-MCS events. They add no independent simulation exposure and do not rerun
-reconstruction. The earlier `Run1Baw_best_v1_5` and `Run1B-010/-011/-012` NTS
-tables are preserved in the [historical catalog](run1b_datasets_historical.md).
+All three tags use `AnalysisMDC2025/v02_03_01`, backed by `SimJob/MDC2025bb`
+and EventNtuple `v06_16_00`. `Run1B-014` reads NoPrimary MCS `-001`,
+`Run1B-015` reads NoPrimary `-002`, and `Run1B-013` reads the other listed families.
+The registered CNFs include `EventNtuple/fcl/from_mcs-Run1B.fcl`.
 
-For new analyses, start with this generation and check the branches and weights
-used by the analysis. The catalog and configuration checks below establish
-provenance and file coverage; they do not certify tree-entry counts or physics
-validation of every output.
-
-| NTS configuration | Analysis setup | Backing release | EventNtuple | Direct inputs |
-| --- | --- | --- | --- | --- |
-| `Run1B-013` | `AnalysisMDC2025/v02_03_01` | `SimJob/MDC2025bb` | `v06_16_00` | The thirteen non-NoPrimary Run1Baw MCS families |
-| `Run1B-014` | `AnalysisMDC2025/v02_03_01` | `SimJob/MDC2025bb` | `v06_16_00` | NoPrimary Run1Baw MCS `-001`, high-calo enriched |
-| `Run1B-015` | `AnalysisMDC2025/v02_03_01` | `SimJob/MDC2025bb` | `v06_16_00` | NoPrimary Run1Baw MCS `-002`, inclusive 450 ns control |
-
-The three registered CNFs include
-`EventNtuple/fcl/from_mcs-Run1B.fcl`. Their `jobpars.json` files select the
-analysis setup above; its installed EventNtuple checkout is tag `v06_16_00`,
-commit `70b124c6077c332cdaf4be9fbca0f6206b491ed3`.
-
-#### Why use the regenerated ntuples
-
-Relative to `v06_14_03`, this release includes analysis-relevant corrections:
-
-- [PR #419](https://github.com/Mu2e/EventNtuple/pull/419) refreshes the current event's weight handles before filling `evtwt`; the earlier order could fill stale or invalid weights. This is especially relevant to the RPC survival weights.
-- [PR #420](https://github.com/Mu2e/EventNtuple/pull/420) fills `calomcsim.prirel`, the relationship to the event primary, so calorimeter clusters from primary descendants can be identified without relying on SimParticle IDs alone.
-- [PR #433](https://github.com/Mu2e/EventNtuple/pull/433) uses collection/`Ptr` identity when linking calorimeter hits, reco digis, and digis, avoiding fragile value-based matching for the configured collection.
-
-These changes explain the technical value of regenerating the ntuples. The
-specific production request for `Run1B-013/-014/-015` has not been independently
-confirmed. The full [release comparison](https://github.com/Mu2e/EventNtuple/compare/v06_14_03...v06_16_00)
-and [tagged Run1B wrapper](https://github.com/Mu2e/EventNtuple/blob/v06_16_00/fcl/from_mcs-Run1B.fcl)
-record the source changes and effective configuration.
-
-The wrapper still merges `KKLine`, `ProtonKKLine`, and `CosmicKKLine` into
-`trk`, stores the four named time-cluster collections and the three line-seed
-collections, and uses `geom_common.txt`. The v40/DS-off reconstruction provenance
-remains that of the parent MCS. TrkQual and TrkPID are not configured for these
-merged tracks (`mvaTags` and `mvaBranches` are empty), and TrkDtDt filling is off.
-The default `calo.mc.entrantTag` is empty, so the optional
-`calohitsmc.entrantSimIds` feature is not populated by this wrapper.
-`cosmicLivetime.include` is also false; cosmic normalization still needs upstream
-production provenance. These defaults are recorded in the wrapper and the
-[tagged prolog](https://github.com/Mu2e/EventNtuple/blob/v06_16_00/fcl/prolog.fcl).
+The wrapper merges `KKLine`, `ProtonKKLine` and `CosmicKKLine` into `trk`.
+Merged-track TrkQual/TrkPID, TrkDtDt, calorimeter `entrantSimIds` and cosmic
+livetime filling are disabled. Time-cluster and line-seed collections are retained.
+[Wrapper](https://github.com/Mu2e/EventNtuple/blob/v06_16_00/fcl/from_mcs-Run1B.fcl),
+[defaults](https://github.com/Mu2e/EventNtuple/blob/v06_16_00/fcl/prolog.fcl).
 
 #### Current NTS definitions and coverage
 
-**Catalog and direct-parent audit: 2026-11-06 04:56:36 UTC.** All 40,546 active NTS files
-have exactly one same-family, same-sequencer MCS parent and the expected
-registered CNF parent. Every file in the fifteen corresponding active MCS
-definitions is covered exactly once. SAM and MetaCat file counts agree, and
-there are no retired NTS records in these definitions at this check.
-
-SAM reports NTS `Event count: None`, meaning unavailable event-count metadata.
-The covered-MCS-event column is the SAM event total of the fully covered parent
-definition, not an independently measured ROOT tree-entry count. Sizes use
-decimal GB (`10^9` bytes); the complete NTS generation totals 1,740,931,257,563
-bytes (about 1.74 TB). Catalog registration does not establish dCache locality.
+SAM NTS `Event count: None` denotes unavailable event metadata. Covered MCS
+events below come from fully covered parent definitions; ROOT tree entries
+require an output-content check. Sizes use decimal GB.
 
 | NTS definition | Direct MCS parent | NTS / MCS files | Covered MCS events | NTS size (GB) |
 | --- | --- | --- | --- | --- |
@@ -253,6 +141,8 @@ bytes (about 1.74 TB). Catalog registration does not establish dCache locality.
 | `nts.mu2e.FlatGammaMix1BB-KL.Run1B-013.root` | `mcs.mu2e.FlatGammaMix1BB-KL.Run1Baw_best_v1_5.art` | 1,999 / 1,999 | 1,039,674 | 9.82 |
 | `nts.mu2e.FlateMinus-KL.Run1B-013.root` | `mcs.mu2e.FlateMinus-KL.Run1Baw_best_v1_5.art` | 19 / 19 | 570,932 | 9.58 |
 | `nts.mu2e.FlateMinusMix1BB-KL.Run1B-013.root` | `mcs.mu2e.FlateMinusMix1BB-KL.Run1Baw_best_v1_5.art` | 1,998 / 1,998 | 704,053 | 14.64 |
+| `nts.mu2e.MuCap1809keVCalo-KL.Run1B-013.root` | `mcs.mu2e.MuCap1809keVCalo-KL.Run1Baw_best_v1_5.art` | 10 / 10 | 2,259,321 | 0.78 |
+| `nts.mu2e.MuCap1809keVCaloMix1BB-KL.Run1B-013.root` | `mcs.mu2e.MuCap1809keVCaloMix1BB-KL.Run1Baw_best_v1_5.art` | 50 / 50 | 2,259,321 | 6.23 |
 | `nts.mu2e.MuCapNeutronTailCaloMix1BB-KL.Run1B-013.root` | `mcs.mu2e.MuCapNeutronTailCaloMix1BB-KL.Run1Baw_best_v1_5.art` | 1,000 / 1,000 | 154,086 | 1.36 |
 | `nts.mu2e.MuCapProtonTailCaloMix1BB-KL.Run1B-013.root` | `mcs.mu2e.MuCapProtonTailCaloMix1BB-KL.Run1Baw_best_v1_5.art` | 200 / 200 | 158,688 | 2.72 |
 | `nts.mu2e.NoPrimaryMix1BB-KL.Run1B-014.root` | `mcs.mu2e.NoPrimaryMix1BB-KL.Run1Baw_best_v1_5-001.art` | 20,000 / 20,000 | 344,196,254 | 1,176.07 |
@@ -261,199 +151,110 @@ bytes (about 1.74 TB). Catalog registration does not establish dCache locality.
 | `nts.mu2e.RPCExternalMix1BB-KL.Run1B-013.root` | `mcs.mu2e.RPCExternalMix1BB-KL.Run1Baw_best_v1_5.art` | 5,000 / 5,000 | 643,155 | 9.00 |
 | `nts.mu2e.RPCInternalMix1BB-KL.Run1B-013.root` | `mcs.mu2e.RPCInternalMix1BB-KL.Run1Baw_best_v1_5.art` | 5,000 / 5,000 | 230,559 | 5.96 |
 
-Every row is complete relative to its current MCS definition. In particular,
-`Run1B-015` covers all 1,998 available NoPrimary `-002` MCS files, while the
-upstream reconstruction remains 1,998/2,000 planned. Re-ntupling cannot recover
-the two missing DIGI-to-MCS outputs described above. Different NTS generations
-overlap in events; use one representation for an analysis rather than counting
-them as independent samples.
+Direct-parent audits establish one-to-one coverage of the current MCS files.
+`Run1B-015` covers all 1,998 available NoPrimary MCS files, inheriting the
+upstream two-file shortfall.
+Ntuple generations reuse the same MCS events and add no independent exposure.
 
 ## Source generation and filtering
 
-The primary DTS definitions are themselves selected detector-step samples.  Their
-registered event counts are therefore not the number of generator trials.
+DTS stores selected detector steps. Configured trials are job count times
+`source.maxEvents`; physical normalization also needs the production's source
+exposure or weights.
 
-| Family | Primary DTS definition | Configured generator/resampler trials | Retained DTS events | Source efficiency | Source construction |
-| --- | --- | --- | --- | --- | --- |
-| CE mixed/plain | `dts.mu2e.CeEndpoint.Run1Ban-001.art` | 2,000,000,000 | 3,326,758 | 0.1663% | Endpoint electron from a stopped Al muon; calorimeter-oriented source filter. |
-| Cosmic mixed | `dts.mu2e.CosmicCRYAll.Run1Ban.art` | 100,000,000 | 2,899,101 | 2.899% | Resamples the common CRY stage-1 library using Run1Ban v40 stage-2 simulation/filter. |
-| Cosmic plain | `dts.mu2e.CosmicCRYAll.Run1Bah.art` | 4,977,000,000 | 141,353,437 | 2.840% | Resamples the same stage-1 library using Run1Bah v03 stage-2 simulation/filter. |
-| Flat electron mixed/plain | `dts.mu2e.FlateMinus.Run1Ban-001.art` | 1,999,000,000 | 3,049,553 | 0.1526% | Flat 50–110 MeV/c electron; calorimeter-oriented source filter. |
-| Flat photon mixed/plain | `dts.mu2e.FlatGamma.Run1Ban-001.art` | 2,000,000,000 | 2,608,176 | 0.1304% | Flat 50–110 MeV/c photon; calorimeter-oriented source filter. |
-| Neutron tail | `dts.mu2e.MuCapNeutronTailCalo.Run1Baq.art` | 125,000,000 | 4,768,912 | 3.815% | Capture-neutron spectrum; kinetic energy above 60 MeV and `0.99 < cos(theta_z) < 1`. |
-| Proton tail | `dts.mu2e.MuCapProtonTailCalo.Run1Baq.art` | 100,000,000 | 3,721,921 | 3.722% | Ejected-proton spectrum; kinetic energy above 60 MeV and `0.99 < cos(theta_z) < 1`. |
-| NoPrimary -001 | `dts.mu2e.NoPrimary.Run1Baq.art` | 5,000,000,000 | 5,000,000,000 | 100.0% | Empty events; the later mixing job supplies all physics content. |
-| NoPrimary -002/-003 | `dts.mu2e.NoPrimary.Run1Ban.art` | 100,000,000 | 100,000,000 | 100.0% | Empty events; the later mixing job supplies all physics content. |
-| Poly photon | `dts.mu2e.PolyFlatGammaCalo.Run1Baq.art` | 100,000,000 | 11,669,927 | 11.67% | Flat 50–110 MeV/c photon from COL5 poly/C muon stops, aimed nearly along +z. |
-| RPC external | `dts.mu2e.RPCExternal.Run1Bap.art` | 5,000,000,000 | 5,729,464 | 0.1146% | Bistirlich photon at a stopped-pion position; standard 45 MeV calo-rich source filter. |
-| RPC internal | `dts.mu2e.RPCInternal.Run1Bap.art` | 5,000,000,000 | 4,165,776 | 0.08332% | Kroll–Wada internal-conversion pair; standard 45 MeV calo-rich source filter. |
+| Primary DTS definition | Configured trials | Retained DTS events | Source |
+| --- | --- | --- | --- |
+| `dts.mu2e.CeEndpoint.Run1Ban-001.art` | 2,000,000,000 | 3,326,758 | Endpoint electron from a stopped Al muon; calorimeter-oriented source filter. |
+| `dts.mu2e.CosmicCRYAll.Run1Ban.art` | 100,000,000 | 2,899,101 | Resamples the common CRY stage-1 library using Run1Ban v40 stage-2 simulation/filter. |
+| `dts.mu2e.CosmicCRYAll.Run1Bah.art` | 4,977,000,000 | 141,353,437 | Resamples the same stage-1 library using Run1Bah v03 stage-2 simulation/filter. |
+| `dts.mu2e.FlateMinus.Run1Ban-001.art` | 1,999,000,000 | 3,049,553 | Flat 50–110 MeV/c electron; calorimeter-oriented source filter. |
+| `dts.mu2e.FlatGamma.Run1Ban-001.art` | 2,000,000,000 | 2,608,176 | Flat 50–110 MeV/c photon; calorimeter-oriented source filter. |
+| `dts.mu2e.MuCap1809keVCalo.Run1Baw.art` | 10,000,000 | 2,259,321 | 1.809 MeV capture photons directed toward the calorimeter. |
+| `dts.mu2e.MuCapNeutronTailCalo.Run1Baq.art` | 125,000,000 | 4,768,912 | Capture-neutron spectrum; kinetic energy above 60 MeV and `0.99 < cos(theta_z) < 1`. |
+| `dts.mu2e.MuCapProtonTailCalo.Run1Baq.art` | 100,000,000 | 3,721,921 | Ejected-proton spectrum; kinetic energy above 60 MeV and `0.99 < cos(theta_z) < 1`. |
+| `dts.mu2e.NoPrimary.Run1Baq.art` | 5,000,000,000 | 5,000,000,000 | Empty events; the later mixing job supplies all physics content. |
+| `dts.mu2e.NoPrimary.Run1Ban.art` | 100,000,000 | 100,000,000 | Empty events; the later mixing job supplies all physics content. |
+| `dts.mu2e.PolyFlatGammaCalo.Run1Baq.art` | 100,000,000 | 11,669,927 | Flat 50–110 MeV/c photon from COL5 poly/C muon stops, aimed nearly along +z. |
+| `dts.mu2e.RPCExternal.Run1Bap.art` | 5,000,000,000 | 5,729,464 | Bistirlich photon at a stopped-pion position; standard 45 MeV calo-rich source filter. |
+| `dts.mu2e.RPCInternal.Run1Bap.art` | 5,000,000,000 | 4,165,776 | Kroll–Wada internal-conversion pair; standard 45 MeV calo-rich source filter. |
 
-The configured-trials column is reconstructed from job count times
-`source.maxEvents`.  It is a generator/resampling trial count, **not**
-an equivalent POT, stopped-muon exposure, or physical normalization.
-
-For CE, the flat samples, capture tails, and poly photon, the source driver disables
-tracker-step alternatives and configures a 20 MeV single-particle calorimeter-step
-threshold; the inherited total-calorimeter threshold remains 45 MeV.  RPC retains
-the standard 45 MeV calo thresholds.  These source datasets are deliberately
-detector-response enriched.
+CE, flat electron/photon, capture-tail and poly-photon source drivers disable
+tracker-step alternatives, set a 20 MeV single-particle calo-step threshold and
+retain the 45 MeV total-calo threshold. RPC retains the standard 45 MeV calo
+thresholds. MuCap1809 uses 0.1 MeV calo-energy thresholds and
+`0.99 <= cos(theta_z) <= 1`.
 
 ## CRYAll details and geometry warning
 
-Both cosmic stage-2 sources resample
-`sim.mu2e.CosmicDSStopsCRYAll.MDC2025ab.art` (20,000 files and
-2,585,823,777 registered events).  The stage-1 configuration generates correlated
-CRY showers at the surface and propagates them toward the DS/CRV stage-1 boundary.
-Its exact CRY configuration enables muons, neutrons, protons, photons, electrons,
-pions, and kaons.  This is the meaning of `CRYAll`.
+Both cosmic sources resample `sim.mu2e.CosmicDSStopsCRYAll.MDC2025ab.art`,
+containing correlated CRY muons, neutrons, protons, photons, electrons, pions
+and kaons. Mixed DIGI uses Run1Ban v40 stage-2 DTS; plain DIGI uses Run1Bah v03.
+Their comparison changes source geometry and statistics as well as overlay.
 
-The registered DIGI `jobpars.json` files show:
+| Cosmic DTS source | Stored livetime issue | Normalization |
+| --- | --- | --- |
+| Run1Bah, plain | 88.8 s/file stored | Use 114.5 s per contributing DTS file, or multiply stored livetime by 1.289. |
+| Run1Ban, mixed | Integer truncation stores zero | Use 22.9 s per contributing DTS file and the exact downstream input list. |
 
-- `CosmicCRYAllMix1BB` reads `dts.mu2e.CosmicCRYAll.Run1Ban.art`, whose source CNF uses `geom_run1_b_v40.txt`;
-- plain `CosmicCRYAll` reads `dts.mu2e.CosmicCRYAll.Run1Bah.art`, whose source CNF uses `geom_run1_b_v03.txt`.
-
-Although both final DIGI FCLs specify v40, the detector steps were already made in
-stage 2.  The listed plain/mixed comparison therefore changes source statistics and
-source-stage geometry in addition to removing beam overlay.  A clean cosmic overlay
-ablation needs a plain DIGI made from the Run1Ban v40 DTS source, or an explicitly
-validated equivalent.
-
-The stage-2 cosmic sources also have a known integer-truncation bug in their stored
-`CosmicLivetime` products; see
-[Offline PR #1940](https://github.com/Mu2e/Offline/pull/1940) for the corresponding
-code correction:
-
-- Run1Bah stores 88.8 s/file instead of the true 114.5 s/file.  Multiply the stored livetime by 1.289, or use 114.5 s per contributing DTS file.
-- Run1Ban evaluates `floor(100000/129291)=0`, so its stored livetime is exactly zero and cannot be fixed with a multiplicative correction.  Use the documented true 22.9 s per contributing DTS file and the exact downstream job provenance.
-
-Do not normalize either cosmic DIGI from raw saved-event count.  See the Run1B
-cosmic table and warning on [MDC2025](https://mu2ewiki.fnal.gov/wiki/MDC2025).
+The source correction is documented in
+[Offline PR #1940](https://github.com/Mu2e/Offline/pull/1940) and the
+[MDC2025 cosmic table](https://mu2ewiki.fnal.gov/wiki/MDC2025).
 
 ## DIGI output selection
 
-Most definitions on this page are not inclusive copies of their DTS inputs.  The
-Run1B no-field digitization epilog saves the no-field calorimeter-focused trigger
-menu (`calo_cluster_60`, `70`, `75`,
-`80`, and `apr_TC_calo`) plus the
-`TriggerableCaloPath`, with
-`TriggerableCalo.MinParticleEnergy=60 MeV`.  This final DIGI selection is
-separate from the earlier source-DTS filter.
+The usual no-field DIGI epilog accepts the calo-focused trigger menu
+(`calo_cluster_60/70/75/80`, `apr_TC_calo`) or `TriggerableCaloPath`, whose
+`MinParticleEnergy` is 60 MeV. This follows the earlier DTS selection.
 
-The corrected MDC2025av NoPrimary configuration instead selects successful
-`DigitizePath` events:
-
-- `-001` has `CaloDtsClusterFilter.NullFilter=false`.  It clusters `CaloShowerStep` energy and requires a cluster above 50 MeV, using `MinimumStepTime=400 ns`, `TimeWindow=100 ns`, and `SpaceWindow=80 mm`.
-- `-002` and `-003` have `NullFilter=true` and save all 100 million successful digitizations.
-
-The `-001` 50 MeV variable is therefore a truth-step cluster, not a
-reconstructed calorimeter cluster and not an analysis quantity such as
-`lead_calo_energy`.
+NoPrimary uses `DigitizePath` selection. Its `-001` filter requires a truth-step
+calo cluster above 50 MeV, with `MinimumStepTime=400 ns`, `TimeWindow=100 ns`
+and `SpaceWindow=80 mm`. The cluster uses `CaloShowerStep` energy. Variants
+`-002/-003` set `NullFilter=true` and retain successful digitizations.
+Both MuCap1809 DIGIs override the trigger epilog with `mixing/NoPrimary.fcl`,
+retaining successful `DigitizePath` events.
 
 ## Analysis and normalization cautions
 
-1. Raw saved-event count is not physical exposure.  Use the appropriate generator count, source exposure, cosmic livetime, event weight, and rate model.
-1. CE is a signal-kinematics sample.  A physical CE yield also needs stopped-muon exposure and an assumed conversion rate.
-1. Flat electron/photon, directed tail, poly-photon, and RPC datasets are biased in kinematics and/or source selection.  Use them for response, efficiency, classifier support, and failure-mode studies rather than raw-rate estimates.
-1. RPC generation turns pion decay off during transport and records the exponential survival correction as an event weight.  Ignoring the weight changes the time/rate model.
-1. Normalize NoPrimary `-001` from 5.0 billion processed source events, not 344.2 million saved events.  Use `-002` to measure production-filter efficiency and feature/score sculpting.  Do not concatenate `-001` and `-002` with unit event weights.
-1. `-002` and `-003` are the best pair here for studying the configured 450 ns versus 300 ns start, but independent random mixing/digitization can still cause event-level differences.
+- Normalize CE using stopped-muon exposure and the assumed conversion rate.
+- Flat, directed-tail, poly-photon and source-filtered samples require their
+  generation/selection corrections for rate estimates.
+- Apply the stored RPC survival weight, which accounts for pion decay disabled
+  during transport. Use the corrected current ntuple generation for `evtwt`.
+- Normalize NoPrimary `-001` from its 5 billion source events. Use `-002` as
+  the inclusive filter-efficiency control. Combining the two requires weights.
+- NoPrimary `-002/-003` compare 450 ns and 300 ns digitization starts, with
+  independent random mixing and digitization.
 
 ## How to reproduce the provenance check
 
-`listNewDatasets` is supplied by prodtools, not by `muse setup ops` alone. On a
-GPVM, use an installed prodtools release with the operations environment:
+On a configured GPVM, compare SAM with active and active-plus-retired MetaCat
+membership for the exact definition.
 
 ```bash
-mu2einit
-muse setup ops
-source /cvmfs/mu2e.opensciencegrid.org/bin/prodtools/v3.3.4/bin/setup.sh
-listNewDatasets --filetype root --days 30 | grep Run1B
+source /cvmfs/mu2e.opensciencegrid.org/setupmu2e-art.sh
+setup metacat 3.38.0
+setup sam_web_client
+
+definition=nts.mu2e.MuCap1809keVCaloMix1BB-KL.Run1B-013.root
+samweb list-definition-files --summary "$definition"
+metacat query -s "files from mu2e:$definition"
+metacat query -r -s "files from mu2e:$definition"
+metacat query -j -P "files from mu2e:$definition"
 ```
 
-For a specific definition, compare the SAM summary with active and
-active-plus-retired MetaCat counts:
+Use the per-file parent IDs to check unique MCS coverage. Resolve registered
+CNFs through SAM and inspect both the FCL and setup/input grouping.
 
 ```bash
-samweb list-definition-files --summary dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art
-metacat query -s \
-  "files from mu2e:dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art"
-metacat query -r -s \
-  "files from mu2e:dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art"
-```
-
-The compact registered production evidence is the CNF tarball. It contains the
-generated FCL and `jobpars.json`, including the exact setup and source grouping.
-Resolve the current catalog location rather than copying a hard-coded storage
-path:
-
-```bash
-samweb locate-file \
-  cnf.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-003.0.tar
-
-CNF=/path/reported/by/samweb/cnf.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-003.0.tar
+samweb locate-file cnf.mu2e.evnt.Run1B-013.0.tar
+CNF=/path/reported/by/samweb/cnf.mu2e.evnt.Run1B-013.0.tar
+tar -tf "$CNF"
 tar -xOf "$CNF" mu2e.fcl
 tar -xOf "$CNF" jobpars.json
 ```
 
-For comparison, locate
-`cnf.mu2e.NoPrimaryMix1BB.Run1Bav_best_v1_5-002.0.tar` the same way.
-
-The `-003` generated FCL explicitly sets tracker,
-`CaloShowerROMaker`, and `CaloDigiMaker`
-`digitizationStart: 300`.  The `-002` generated FCL has no
-start override and inherits 450 ns from Offline `v13_35_00`:
-
-```text
-/cvmfs/mu2e.opensciencegrid.org/Musings/Offline/v13_35_00/Offline/TrackerConditions/fcl/prolog.fcl
-/cvmfs/mu2e.opensciencegrid.org/Musings/Offline/v13_35_00/Offline/CaloReco/fcl/common.fcl
-/cvmfs/mu2e.opensciencegrid.org/Musings/Offline/v13_35_00/Offline/CaloMC/fcl/prolog.fcl
-```
-
-For the reconstructed MCS definitions, inspect both the generated FCL and
-`jobpars.json`; the latter is where the Run1Baq versus MDC2025aw setup split
-appears. The relevant registered tarball names are:
-
-```text
-cnf.mu2e.CeEndpointMix1BB-reco.Run1Baw_best_v1_5.0.tar
-cnf.mu2e.NoPrimaryMix1BB-reco.Run1Baw_best_v1_5-001.0.tar
-```
-
-The current EventNtuple configurations are registered separately:
-
-```text
-cnf.mu2e.evnt.Run1B-013.0.tar
-cnf.mu2e.evnt.Run1B-014.0.tar
-cnf.mu2e.evnt.Run1B-015.0.tar
-```
-
-Their `mu2e.fcl` members include the same Run1B wrapper; `jobpars.json` records
-`AnalysisMDC2025/v02_03_01/setup.sh`. Historical CNF names are retained in the
-[historical catalog](run1b_datasets_historical.md#registered-configurations).
-
-For direct lineage and represented parent-event totals:
-
-```bash
-metacat query \
-  "parents(files from mu2e:nts.mu2e.NoPrimaryMix1BB-KL.Run1B-014.root)"
-samweb list-files --summary \
-  "isparentof: (defname: nts.mu2e.NoPrimaryMix1BB-KL.Run1B-014.root)"
-```
-
-The MetaCat parent query includes both MCS and CNF parents. To reproduce the
-one-to-one coverage check, list each NTS definition with `metacat query -j -P`,
-compare every file's parent IDs with the expected MCS IDs and CNF ID, check the
-sequencers, and require each MCS ID exactly once. Equal aggregate counts alone
-do not establish that coverage. For a dataset-wide MCS audit, also compare output
-sequencers with the immutable CNF input list because missing direct catalog
-links are not recovered by querying retired records.
-
 ## See also
 
-- [Historical Run1B dataset catalog](run1b_datasets_historical.md)
-- [Datasets](https://mu2ewiki.fnal.gov/wiki/Datasets)
-- [MDC2025](https://mu2ewiki.fnal.gov/wiki/MDC2025)
-- [RunNumbers](https://mu2ewiki.fnal.gov/wiki/RunNumbers)
-- [Generators](https://mu2ewiki.fnal.gov/wiki/Generators)
-- [Mixing](https://mu2ewiki.fnal.gov/wiki/Mixing)
-- [Mixing and Resampling](https://mu2ewiki.fnal.gov/wiki/Mixing_and_Resampling)
-- [FileNames](https://mu2ewiki.fnal.gov/wiki/FileNames)
+- [Historical Run1B ntuples](run1b_datasets_historical.md)
+- [Mu2e datasets](https://mu2ewiki.fnal.gov/wiki/Datasets)
+- [Mixing and resampling](https://mu2ewiki.fnal.gov/wiki/Mixing_and_Resampling)
